@@ -249,7 +249,59 @@ volume.
 
 ---
 
-*For the full narrative case study (all three worked hard-case examples, the complete
-ground-truth analysis, and the Uber cross-domain transfer argument), see
-[CASE_STUDY.md](CASE_STUDY.md). For the complete build decision log, see
-[PROCESS.md](PROCESS.md).*
+## Appendix A: Three Real Cases, Three Different Failure Modes
+
+Not made-up examples — three real reviews from the dataset, each chosen to stress a
+different way a fraud-detector can go wrong.
+
+**The reviewer who posted seven reviews in one sitting.** Looks like a flood-and-run fake
+account on posting frequency alone. But the ratings varied naturally (not uniformly
+5-star, the tell of a paid campaign) and the wording differed across all seven — most
+likely someone catching up on write-ups after several real visits. Yelp agreed: not
+flagged. **Lesson:** timing alone is an easy false alarm; the other signals are what keep
+the agent from flagging a real person just for *when* they posted.
+
+**The fake campaign that was smart enough to not sound fake.** Read on its own, this
+review is indistinguishable from a genuine one — specific, casual, no template tells. A
+text-only classifier would clear it instantly (verified directly — see the classifier
+comparison this project ran). What the text can't show: a singleton account with no other
+history, posted during a ~5x spike in the business's review velocity. Neither fact lives
+in the words. Together they correctly caught a coordinated campaign a text-only approach
+missed entirely — the single clearest justification for investigating instead of just
+reading.
+
+**The case where the evidence disagreed with itself.** A posting burst (suspicious) with
+no corroborating business-side spike, no rating-uniformity, no copy-paste (all pointing
+the other way). Yelp did not flag it. The point isn't that the answer was right — it's
+that the right response to conflicting evidence is honest uncertainty ("probably fine, not
+sure"), not a confidently blended guess in either direction. An agent that manufactures
+certainty when signals genuinely disagree is worse even when it happens to land correctly.
+
+## Appendix B: Would This Transfer? Uber's Rating-Fraud Problem
+
+The real claim of this project isn't "this works for Yelp" — it's that the *approach*
+(investigate from multiple angles → pre-register an autonomy policy → be upfront about
+the ground truth's flaws → keep watching post-launch) transfers to any marketplace-trust
+problem. Uber's ratings are a useful stress test, even without access to Uber's data:
+
+- **Reviewer history → rater history**, same question: does this person's rating pattern
+  look normal, or suspiciously uniform, or bursty?
+- **Business trend → driver/rider trend**, same question, applied to a person instead of
+  a business.
+- **Text similarity → behavior similarity** — Uber ratings are mostly stars with little
+  text, so the literal tool doesn't carry over, but the underlying idea does: look for
+  suspiciously matching *patterns* (same route, same time window, reused payment method
+  across a cluster of accounts) instead of matching wording.
+- **The autonomy bar shifts, and pretending otherwise would be the wrong lesson.** A
+  wrongly deleted Yelp review is reversible and low-stakes; wrongly restricting someone's
+  ability to drive or ride affects real income. The three-tier shape holds, but the bar
+  for full automation should move sharply toward caution — the framework transfers, the
+  specific comfort level with automation does not.
+
+---
+
+*The original, more discursive narrative write-up this document was distilled from is
+kept at [CASE_STUDY.md](CASE_STUDY.md) for anyone who wants the longer version. The
+complete build decision log — all 15 architectural and product decisions, in ADR-lite
+format — is at [PROCESS.md](PROCESS.md). Neither is required reading; everything load-
+bearing for understanding this project is above.*
