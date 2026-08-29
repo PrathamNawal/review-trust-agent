@@ -17,16 +17,11 @@ of a solved problem.
 
 **[Read the full case study →](PRODUCT_CASE_STUDY.md)** — business problem, impact,
 hypothesis, users & JTBD, scope & tradeoffs, evaluation plan, top risks, plus three real
-hard-case walkthroughs and a cross-domain transfer argument (Uber). This is the one
-document to read if you're reading one.
+hard-case walkthroughs.
 
 This dashboard is a real Streamlit app running real Python — not a mockup. Every
 number, chart, and control is wired to a real computation (see "What's real vs. scoped
 down" below).
-
-<sub>Deeper reading, not required: the original narrative write-up this was distilled
-from ([CASE_STUDY.md](CASE_STUDY.md)) and the full 15-entry build decision log
-([PROCESS.md](PROCESS.md)).</sub>
 
 ## Try it
 

@@ -277,31 +277,8 @@ that the right response to conflicting evidence is honest uncertainty ("probably
 sure"), not a confidently blended guess in either direction. An agent that manufactures
 certainty when signals genuinely disagree is worse even when it happens to land correctly.
 
-## Appendix B: Would This Transfer? Uber's Rating-Fraud Problem
-
-The real claim of this project isn't "this works for Yelp" — it's that the *approach*
-(investigate from multiple angles → pre-register an autonomy policy → be upfront about
-the ground truth's flaws → keep watching post-launch) transfers to any marketplace-trust
-problem. Uber's ratings are a useful stress test, even without access to Uber's data:
-
-- **Reviewer history → rater history**, same question: does this person's rating pattern
-  look normal, or suspiciously uniform, or bursty?
-- **Business trend → driver/rider trend**, same question, applied to a person instead of
-  a business.
-- **Text similarity → behavior similarity** — Uber ratings are mostly stars with little
-  text, so the literal tool doesn't carry over, but the underlying idea does: look for
-  suspiciously matching *patterns* (same route, same time window, reused payment method
-  across a cluster of accounts) instead of matching wording.
-- **The autonomy bar shifts, and pretending otherwise would be the wrong lesson.** A
-  wrongly deleted Yelp review is reversible and low-stakes; wrongly restricting someone's
-  ability to drive or ride affects real income. The three-tier shape holds, but the bar
-  for full automation should move sharply toward caution — the framework transfers, the
-  specific comfort level with automation does not.
-
 ---
 
-*The original, more discursive narrative write-up this document was distilled from is
-kept at [CASE_STUDY.md](CASE_STUDY.md) for anyone who wants the longer version. The
-complete build decision log — all 15 architectural and product decisions, in ADR-lite
-format — is at [PROCESS.md](PROCESS.md). Neither is required reading; everything load-
-bearing for understanding this project is above.*
+*The complete build decision log — every architectural and product decision made during
+the build, in ADR-lite format — is in this repo at `PROCESS.md`, for anyone who wants to
+dig into the engineering process.*
