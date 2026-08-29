@@ -200,11 +200,11 @@ as a guided six-step flow:
    16 reviews labeled so far, **56.2% accuracy** — landing squarely in the 50–65% range
    reported in independent published research on this exact task, which is itself
    evidence the task is genuinely hard, not that the labeler was careless.
-2. **Try it — Agent** — the real agent investigates live (any of 4 providers), full
+3. **Try it — Agent** — the real agent investigates live (any of 4 providers), full
    tool-call trace visible, on the same item a visitor just judged as a human.
-3. **Play** — edit the system prompt, temperature, provider, or threshold and deploy a
+4. **Play** — edit the system prompt, temperature, provider, or threshold and deploy a
    new version with one click; quick-experiment presets pre-fill common changes.
-4. **Track Performance** — every judgment, human or agent, logged to MLflow and grouped
+5. **Track Performance** — every judgment, human or agent, logged to MLflow and grouped
    by config version, with Wilson-score confidence intervals (appropriate at the small-n
    a live dashboard session actually produces) and a plain-language before/after delta.
 

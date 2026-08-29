@@ -3,6 +3,10 @@
 An AI agent that investigates whether a Yelp review is fake — and a live dashboard
 that lets you second-guess it, tweak its behavior, and see the tradeoffs.
 
+![The dashboard's hero page: real 56%/84%/0% headline stats and a 6-step guided tour](assets/dashboard-hero.png)
+
+**[Try the live dashboard →](https://review-trust-agent.streamlit.app/)**
+
 **The headline finding, reported exactly as found:** in a 50-review real evaluation
 batch, the agent scored 84% accuracy — but **0% recall on actual fraud**, missing every
 one of the 6 real fake reviews in that batch. On this class-imbalanced task, a trivial
