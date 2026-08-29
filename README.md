@@ -1,14 +1,26 @@
-# Review Trust Agent — PM Dashboard (public demo)
+# Review Trust Agent
 
-A live, interactive demo of an agentic fraud-detection system for Yelp
-reviews, built to show product-manager-level control over an AI agent: an
-editable system prompt, temperature, model provider, and confidence
-threshold, with one-click deploy and MLflow-backed before/after performance
-tracking. This is a real Streamlit app running real Python — not a mockup.
+An AI agent that investigates whether a Yelp review is fake — and a live dashboard
+that lets you second-guess it, tweak its behavior, and see the tradeoffs.
 
-Full project write-up (case study, decision log, failure cases, eval
-methodology): see the [Review Trust Agent](https://github.com/PrathamNawal/agentic-pm)
-project this was extracted from.
+**The headline finding, reported exactly as found:** in a 50-review real evaluation
+batch, the agent scored 84% accuracy — but **0% recall on actual fraud**, missing every
+one of the 6 real fake reviews in that batch. On this class-imbalanced task, a trivial
+"always guess genuine" baseline scores 88% — *higher* than the careful, evidence-weighing
+agent, while doing zero actual work. That gap is the whole point of this project: this is
+a rigorously evaluated system with a real, actionable failure mode, not a polished demo
+of a solved problem.
+
+- **[Read the full product case study](PRODUCT_CASE_STUDY.md)** — business problem,
+  hypothesis, users & JTBD, scope & tradeoffs, evaluation plan, top risks.
+- **[Read the narrative case study](CASE_STUDY.md)** — the autonomy policy, three real
+  hard-case walkthroughs, the ground-truth caveat, and the Uber cross-domain argument.
+- **[Read the full build decision log](PROCESS.md)** — every architectural and product
+  decision made during the build, in ADR-lite format.
+
+This dashboard is a real Streamlit app running real Python — not a mockup. Every
+number, chart, and control is wired to a real computation (see "What's real vs. scoped
+down" below).
 
 ## Try it
 
