@@ -33,13 +33,16 @@ environment variables before launching: `GROQ_API_KEY`, `OPENROUTER_API_KEY`,
 
 ## Pages
 
+The app is a guided funnel, numbered in the order a first-time visitor should click through:
+
 | Page | What it does |
 |---|---|
-| **Overview** | Top-line metrics + performance comparison across every config version deployed so far |
-| **Human Review** | Act as the analyst — real reviews, real evidence, blind judgment, scored live |
-| **Agent Review** | The real agent investigates live: real tool calls, real routing decision (auto-remove / queue / ignore), explicit low-confidence fallback |
-| **System Config** | Edit the system prompt, temperature, provider, model, and auto-remove threshold. One click deploys a new version with an auto-filled diff reason if you leave the reason blank. Roll back to any past version. |
-| **Performance Tracking** | Every judgment (human or agent), grouped by config version, pulled straight from MLflow — accuracy, precision, recall, confidence intervals, avg turns |
+| **1. What is this?** | The hook: the problem statement, three headline numbers (56% human accuracy, 84% agent accuracy, 0% agent fraud recall), and a map of what you can do here |
+| **2. How it works** | Plain-language walkthrough of the evidence loop and the three tools, before any interaction is asked of you |
+| **3. Try it — Human** | Act as the analyst — real reviews, real evidence, blind judgment, scored live. Ends with a CTA to see the agent judge the *same* review |
+| **4. Try it — Agent** | The real agent investigates live: real tool calls, real routing decision (auto-remove / queue / ignore), explicit low-confidence fallback. Inline 3-step guide to getting a free API key if none is set |
+| **5. Play — Tweak the Agent** | Edit the system prompt, temperature, provider, model, and auto-remove threshold — or click a one-click "quick experiment" (more cautious / faster & cheaper / try Claude) to pre-fill the form. One click deploys a new version with an auto-filled diff reason. Roll back to any past version. |
+| **6. Track Performance** | Leads with a plain-language before/after delta ("your last config change moved accuracy from X% to Y%"), then the full MLflow-backed breakdown — accuracy, precision, recall, confidence intervals, avg turns |
 
 ## Resetting to a clean state
 
