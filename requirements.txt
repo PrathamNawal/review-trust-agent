@@ -1,0 +1,7 @@
+streamlit>=1.62
+mlflow>=3.15
+pandas
+scikit-learn
+openai>=3.6
+anthropic>=1.1
+google-genai

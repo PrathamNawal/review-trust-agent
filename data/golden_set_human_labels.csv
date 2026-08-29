@@ -1,0 +1,17 @@
+review_id,predicted_filtered,confidence,primary_signal,reasoning,labeled_at
+474156,False,0.9,business_trend,business trend releaved the rating was close to average rating overall and burst ratio wasn't very to raise any suspicions,2026-08-29T06:32:17.142975+00:00
+478019,True,0.6,reviewer_pattern,this seems like a singleton reviewer,2026-08-29T06:48:28.692620+00:00
+70608,False,0.9,reviewer_pattern,both reviewer pattern and business trend lookup is in sync with the review,2026-08-29T06:54:51.718711+00:00
+74159,False,0.7,business_trend,reviewer patterns raises few suspiciousnes but business trends weighs strongly in sync with the final review,2026-08-29T06:56:02.787823+00:00
+62273,False,0.8,business_trend,business trends tends to give a geniune averge while the burst ratio is pretty high,2026-08-29T06:57:21.417978+00:00
+308721,True,0.5,text_similarity,text similarity and burst ratio raises a lot of suspicious and fake activity in the review,2026-08-29T06:58:29.549485+00:00
+346859,False,0.8,reviewer_pattern,both reviewer pattern and business trend revealed no outlier pattern,2026-08-29T07:09:12.840013+00:00
+161839,True,0.9,reviewer_pattern,"singleton reviewer , fake review",2026-08-29T07:09:32.281365+00:00
+27349,True,0.9,reviewer_pattern,fake review by singleton,2026-08-29T07:10:54.885131+00:00
+516972,True,0.9,reviewer_pattern,"fake review, business trend revealed and backed the fakeenss of review",2026-08-29T07:11:26.278995+00:00
+486798,False,0.6,business_trend,reviewer_history can raise some flags around fakeness but the business trend including burst_ratio seems geniune,2026-08-29T08:05:22.804361+00:00
+584113,True,0.8,reviewer_pattern,reviewer pattern and text similarity reveals fakeness,2026-08-29T08:05:51.423283+00:00
+259676,False,0.7,reviewer_pattern,reviewer pattern seems geniune but the business trend raises few flags towards fakeness especially burst ratio,2026-08-29T08:07:06.646279+00:00
+532333,True,0.7,text_similarity,no reason,2026-08-29T08:17:49.606655+00:00
+404414,True,0.6,text_similarity,singleeton reviewer + text similarity,2026-08-29T08:18:14.070949+00:00
+312314,False,0.8,combination,reviewer pattern + business trend,2026-08-29T08:18:52.335506+00:00
