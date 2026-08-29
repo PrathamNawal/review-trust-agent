@@ -50,11 +50,46 @@ QUICK_EXPERIMENTS = {
 }
 
 
+STEP_LABELS = ["What", "How", "Human", "Agent", "Play", "Track"]
+
+
 def goto(page_name, **session_updates):
     st.session_state["nav_override"] = page_name
     for k, v in session_updates.items():
         st.session_state[k] = v
     st.rerun()
+
+
+def mark_step_done(step_idx):
+    st.session_state.setdefault("progress", {i: False for i in range(6)})[step_idx] = True
+
+
+def render_progress(current_idx):
+    prog = st.session_state.setdefault("progress", {i: False for i in range(6)})
+    if current_idx in (0, 1, 5):  # passive pages count as done once viewed
+        prog[current_idx] = True
+    cols = st.columns(6)
+    for i, col in enumerate(cols):
+        done = prog.get(i, False)
+        is_current = (i == current_idx)
+        icon = "✅" if done else ("▶️" if is_current else "⚪")
+        text = f"{icon} {i + 1}. {STEP_LABELS[i]}"
+        col.markdown(f"**{text}**" if is_current else text)
+    st.progress(sum(prog.values()) / 6)
+    st.write("")
+
+
+@st.dialog("👋 Welcome to Review Trust Agent")
+def welcome_dialog():
+    st.markdown(
+        "This is a guided, 6-step tour (about 5 minutes) of an agentic fraud-detection "
+        "system for Yelp reviews — built to be explored, not just read about.\n\n"
+        "You'll see how it works, judge a real review yourself, watch the agent "
+        "investigate the same review live, tweak its behavior, and track what changed."
+    )
+    if st.button("Start the tour →", type="primary"):
+        st.session_state["welcomed"] = True
+        st.rerun()
 
 
 # ---------- one-time setup ----------
@@ -64,6 +99,9 @@ if "seeded" not in st.session_state:
 
 if "nav_override" in st.session_state:
     st.session_state["nav"] = st.session_state.pop("nav_override")
+
+if "welcomed" not in st.session_state:
+    welcome_dialog()
 
 
 @st.cache_data
@@ -102,6 +140,8 @@ for env_name, label in [("GROQ_API_KEY", "Groq"), ("OPENROUTER_API_KEY", "OpenRo
 active_config = config_store.get_active_config()
 st.sidebar.divider()
 st.sidebar.caption(f"Active config: **{active_config['version']}** ({active_config['provider']}/{active_config['model']})")
+
+render_progress(NAV_OPTIONS.index(page))
 
 
 # ============================================================
@@ -272,6 +312,7 @@ elif page == "3. Try it — Human":
             st.session_state["last_human_correct"] = (predicted_filtered == true_filtered)
             st.session_state["last_human_true_filtered"] = true_filtered
             st.session_state["human_review_id"] = None
+            mark_step_done(2)
             st.rerun()
 
         if st.session_state.get("last_human_review_id") is not None:
@@ -411,6 +452,7 @@ elif page == "4. Try it — Agent":
                     n_tool_calls=n_tool_calls, provider=active_config["provider"], model=active_config["model"],
                     temperature=active_config["temperature"],
                 )
+                mark_step_done(3)
             elif final_result:
                 st.warning(f"No judgment reached: {final_result.get('reasoning')}")
 
@@ -461,6 +503,7 @@ elif page == "5. Play — Tweak the Agent":
             model=model, confidence_threshold=confidence_threshold, reason=reason,
         )
         st.session_state.pop("config_prefill", None)
+        mark_step_done(4)
         st.success(f"Deployed **{new_version['version']}**: {new_version['reason']}")
         if st.button("See how this changed performance →", type="primary"):
             goto("6. Track Performance")
