@@ -107,8 +107,9 @@ Section 8's autonomy policy explicitly builds in an appeals path rather than tre
 - Cross-account network/graph analysis (detecting *rings* of coordinated fake accounts,
   as opposed to one account's own pattern)
 - Fine-tuning or training a custom model — this project deliberately evaluates
-  off-the-shelf LLM reasoning against a simpler classifier baseline (Section 6 of the
-  original case study) rather than assuming a bespoke model is the answer
+  off-the-shelf LLM reasoning against a simpler classifier baseline (see the
+  "smart fake campaign" case in Appendix A) rather than assuming a bespoke model is
+  the answer
 
 **Tradeoffs made deliberately, not by default:**
 - Chose a **permissive** auto-remove threshold, accepting some wrongful removals of
@@ -116,10 +117,20 @@ Section 8's autonomy policy explicitly builds in an appeals path rather than tre
   pretending the risk doesn't exist.
 - Chose to evaluate against Yelp's own filter label as ground truth, while stating
   plainly that this label is itself an imperfect, undisclosed algorithm — not a gold
-  standard (Section 3 of the original case study, and Section 9 below).
+  standard (see Section 9 below).
 - Chose proportional (13.22% filtered) sampling over an artificially balanced 50/50
   sample, because precision/recall on a balanced sample would overstate real-world
   performance (Decision Log #1).
+
+**When NOT to use this agent — contra-indicators, not just scope boundaries:**
+
+| Situation | Why it's unfit | Better alternative |
+|---|---|---|
+| Real-time fraud detection (sub-second decisions) | The multi-turn evidence-gathering loop takes multiple seconds per review | A lightweight rules-based pre-filter for real-time, this agent for a slower deep-review tier |
+| A brand-new platform with little reviewer/business history yet | The tools rely on historical patterns to compare against; a cold-start platform has nothing to compare | Manual review or simple heuristics until enough history accumulates |
+| Legal or compliance-grade fraud determination | The confidence score isn't a certified legal standard, and the training label itself is unverified | Human-led investigation with a documented, defensible chain of evidence |
+| Non-text platforms (photo- or video-only reviews) | The text-similarity tool has nothing to compare | A vision- or multimodal-based fraud detector |
+| High-stakes, irreversible account actions (e.g. permanently banning a business) | The permissive threshold used here isn't calibrated for high-cost, irreversible outcomes | Require human sign-off for any irreversible action, regardless of confidence |
 
 ## 6. Data & Grounding
 
@@ -226,12 +237,17 @@ volume.
 
 ## 10. Risks and Tradeoffs (Top 3)
 
-1. **Recall on real fraud is the unproven, load-bearing risk.** The one real batch
-   result showed 0% recall on actual fraud despite a headline-looking 84% accuracy. Until
-   a full-scale run confirms this is fixable (the likely root cause — over-requiring a
-   business-side spike to corroborate a thin account, per the failure analysis — is
-   concrete and actionable, not vague), **this system is not ready to be trusted with any
-   real autonomy**, regardless of how the dashboard's autonomy policy is configured.
+1. **Recall on real fraud is the unproven, load-bearing risk — and by this project's own
+   pre-registered bar, v1 does not pass it.** Before running any real batch, the success
+   criteria were fixed in advance: 100% schema validity, and recall on the fraud class
+   clearing the trivial majority-class floor. The one real batch result cleared the first
+   bar and missed the second — 0% recall on actual fraud despite a headline-looking 84%
+   accuracy. Stated plainly, not softened: **v1 does not yet meet the bar it was set
+   against, regardless of how good the headline number looks.** Until a full-scale run
+   confirms this is fixable (the likely root cause — over-requiring a business-side spike
+   to corroborate a thin account, per the failure analysis — is concrete and actionable,
+   not vague), **this system is not ready to be trusted with any real autonomy**,
+   regardless of how the dashboard's autonomy policy is configured.
 
 2. **The ground truth itself has a ceiling on how much it can validate.** Every accuracy
    number in this project measures agreement with Yelp's own undisclosed filter — not
