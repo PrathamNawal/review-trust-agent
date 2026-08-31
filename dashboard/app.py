@@ -27,9 +27,18 @@ NAV_OPTIONS = [
     "2. How it works",
     "3. Try it — Human",
     "4. Try it — Agent",
-    "5. Play — Tweak the Agent",
-    "6. Track Performance",
+    "5. Analyst Queue",
+    "6. Check My Review",
+    "7. Play — Tweak the Agent",
+    "8. Track Performance",
 ]
+
+PERSONAS = {
+    "analyst": {"label": "🕵️ Trust & Safety Analyst", "landing": "5. Analyst Queue"},
+    "pm": {"label": "🎛️ Policy Owner / PM", "landing": "7. Play — Tweak the Agent"},
+    "reviewer": {"label": "📝 Reviewer / Business", "landing": "6. Check My Review"},
+    "explorer": {"label": "🔎 Just exploring", "landing": "1. What is this?"},
+}
 
 QUICK_EXPERIMENTS = {
     "cautious": {
@@ -50,7 +59,8 @@ QUICK_EXPERIMENTS = {
 }
 
 
-STEP_LABELS = ["What", "How", "Human", "Agent", "Play", "Track"]
+STEP_LABELS = ["What", "How", "Human", "Agent", "Queue", "Check", "Play", "Track"]
+N_STEPS = len(STEP_LABELS)
 
 
 def goto(page_name, **session_updates):
@@ -60,36 +70,48 @@ def goto(page_name, **session_updates):
     st.rerun()
 
 
+def compute_routing(predicted_filtered, confidence, threshold):
+    if predicted_filtered and confidence >= threshold:
+        return "auto_remove"
+    elif not predicted_filtered and confidence >= threshold:
+        return "ignore"
+    return "queue"
+
+
+ROUTING_LABELS = {"auto_remove": "🔴 Auto-remove", "queue": "🟡 Routed to human queue", "ignore": "🟢 Ignored"}
+
+
 def mark_step_done(step_idx):
-    st.session_state.setdefault("progress", {i: False for i in range(6)})[step_idx] = True
+    st.session_state.setdefault("progress", {i: False for i in range(N_STEPS)})[step_idx] = True
 
 
 def render_progress(current_idx):
-    prog = st.session_state.setdefault("progress", {i: False for i in range(6)})
-    if current_idx in (0, 1, 5):  # passive pages count as done once viewed
+    prog = st.session_state.setdefault("progress", {i: False for i in range(N_STEPS)})
+    if current_idx in (0, 1, 7):  # passive pages count as done once viewed
         prog[current_idx] = True
-    cols = st.columns(6)
+    cols = st.columns(N_STEPS)
     for i, col in enumerate(cols):
         done = prog.get(i, False)
         is_current = (i == current_idx)
         icon = "✅" if done else ("▶️" if is_current else "⚪")
         text = f"{icon} {i + 1}. {STEP_LABELS[i]}"
         col.markdown(f"**{text}**" if is_current else text)
-    st.progress(sum(prog.values()) / 6)
+    st.progress(sum(prog.values()) / N_STEPS)
     st.write("")
 
 
 @st.dialog("👋 Welcome to Review Trust Agent")
 def welcome_dialog():
     st.markdown(
-        "This is a guided, 6-step tour (about 5 minutes) of an agentic fraud-detection "
-        "system for Yelp reviews — built to be explored, not just read about.\n\n"
-        "You'll see how it works, judge a real review yourself, watch the agent "
-        "investigate the same review live, tweak its behavior, and track what changed."
+        "This dashboard covers the full agentic fraud-detection system for Yelp reviews — "
+        "built to be explored, not just read about. It plays out differently depending on "
+        "who you are. Pick the closest fit:"
     )
-    if st.button("Start the tour →", type="primary"):
-        st.session_state["welcomed"] = True
-        st.rerun()
+    for key, p in PERSONAS.items():
+        if st.button(p["label"], key=f"persona_welcome_{key}", type="primary" if key == "explorer" else "secondary"):
+            st.session_state["welcomed"] = True
+            st.session_state["persona"] = key
+            goto(p["landing"])
 
 
 # ---------- one-time setup ----------
@@ -124,12 +146,19 @@ def judged_review_ids(judge_type, config_version):
     return set(runs.loc[mask, "tags.review_id"].astype(int))
 
 
-# ---------- sidebar: nav + API keys ----------
+# ---------- sidebar: persona + nav + API keys ----------
 st.sidebar.title("Review Trust Agent")
+
+persona_keys = list(PERSONAS.keys())
+st.session_state.setdefault("persona", "explorer")
+st.sidebar.selectbox(
+    "I am a...", persona_keys, format_func=lambda k: PERSONAS[k]["label"], key="persona",
+)
+
 page = st.sidebar.radio("View", NAV_OPTIONS, key="nav")
 
 st.sidebar.divider()
-st.sidebar.caption("API keys — only needed for step 4 (session only, never written to disk)")
+st.sidebar.caption("API keys — only needed for live agent investigations (steps 4–6; session only, never written to disk)")
 for env_name, label in [("GROQ_API_KEY", "Groq"), ("OPENROUTER_API_KEY", "OpenRouter"),
                          ("GOOGLE_API_KEY", "Gemini"), ("ANTHROPIC_API_KEY", "Claude")]:
     current = os.environ.get(env_name, "")
@@ -169,14 +198,21 @@ if page == "1. What is this?":
         "It's not a solved problem being demoed; it's an open one being made inspectable."
     )
 
+    st.caption(
+        "Not sure where to start? Use the **\"I am a...\"** picker in the sidebar to jump "
+        "straight to the flow built for your role — you can switch it anytime."
+    )
+
     st.divider()
     st.subheader("What you can do here")
     st.markdown("""
 1. **See how it works** — the evidence the agent gathers before it decides
 2. **Try it as a human** — judge a real review blind, see if you'd have caught it
 3. **Try it as the agent** — watch it investigate live, tool call by tool call
-4. **Play** — edit its prompt, temperature, or model provider and deploy a new version
-5. **Track performance** — see exactly how your changes moved accuracy, precision, and recall
+4. **Work the Analyst Queue** — review the agent's already-investigated cases: accept, override, or escalate
+5. **Check a review's status** — as the reviewer/business, see why a decision was made and appeal it
+6. **Play** — edit the prompt, temperature, or model provider and deploy a new version
+7. **Track performance** — see exactly how your changes moved accuracy, precision, and recall
 """)
 
     if st.button("See how it works →", type="primary"):
@@ -415,12 +451,7 @@ elif page == "4. Try it — Agent":
                 confidence = final_result["confidence"]
                 true_filtered = bool(row["filtered"])
 
-                if predicted_filtered and confidence >= threshold:
-                    routing = "auto_remove"
-                elif not predicted_filtered and confidence >= threshold:
-                    routing = "ignore"
-                else:
-                    routing = "queue"
+                routing = compute_routing(predicted_filtered, confidence, threshold)
 
                 st.divider()
                 verdict_col, routing_col = st.columns(2)
@@ -428,9 +459,7 @@ elif page == "4. Try it — Agent":
                     st.metric("Verdict", "Likely fake" if predicted_filtered else "Likely genuine",
                               f"{confidence:.0%} confidence")
                 with routing_col:
-                    routing_label = {"auto_remove": "🔴 Auto-remove", "queue": "🟡 Routed to human queue",
-                                      "ignore": "🟢 Ignored"}[routing]
-                    st.metric("Routing decision", routing_label)
+                    st.metric("Routing decision", ROUTING_LABELS[routing])
                     if routing == "queue":
                         st.caption("⚠️ Confidence fell below the threshold — the policy falls back to a human, "
                                    "exactly as designed, rather than guessing.")
@@ -448,7 +477,8 @@ elif page == "4. Try it — Agent":
                 mlflow_tracking.log_judgment(
                     judge_type="agent", config_version=active_config["version"], review_id=review_id,
                     true_filtered=true_filtered, predicted_filtered=predicted_filtered, confidence=confidence,
-                    primary_signal=final_result["primary_signal"], turns_used=final_result.get("turns_used"),
+                    primary_signal=final_result["primary_signal"], reasoning=final_result.get("reasoning"),
+                    turns_used=final_result.get("turns_used"),
                     n_tool_calls=n_tool_calls, provider=active_config["provider"], model=active_config["model"],
                     temperature=active_config["temperature"],
                 )
@@ -457,14 +487,222 @@ elif page == "4. Try it — Agent":
                 st.warning(f"No judgment reached: {final_result.get('reasoning')}")
 
         st.divider()
-        if st.button("Play — tweak how the agent behaves →"):
-            goto("5. Play — Tweak the Agent")
+        if st.button("See the Analyst Queue review this case →"):
+            goto("5. Analyst Queue")
 
 
 # ============================================================
-# 5. PLAY — TWEAK THE AGENT
+# 5. ANALYST QUEUE
 # ============================================================
-elif page == "5. Play — Tweak the Agent":
+elif page == "5. Analyst Queue":
+    st.title("Analyst Queue — review the agent's work")
+    st.caption("The agent already investigated these cases. Accept its verdict, override it, or "
+               "escalate for deeper review — every action is logged, so agreement and override "
+               "rate become real, visible metrics instead of silent disagreement.")
+
+    sample = load_sample()
+    tb = toolbox()
+    pending_appeals = mlflow_tracking.get_pending_appeals(active_config["version"])
+    agent_judged = sorted(judged_review_ids("agent", active_config["version"]))
+
+    if pending_appeals:
+        st.warning(f"🚨 {len(pending_appeals)} case(s) appealed by a reviewer/business — shown first below.")
+
+    queue_ids = pending_appeals + [rid for rid in agent_judged if rid not in pending_appeals]
+    if not queue_ids:
+        st.info("No cases in the queue yet — the agent hasn't investigated anything under this "
+                "config version. Go to **4. Try it — Agent** to run one, or check **6. Check My "
+                "Review** for an appeal to land here.")
+    else:
+        default_id = st.session_state.get("queue_review_id", queue_ids[0])
+        if default_id not in queue_ids:
+            default_id = queue_ids[0]
+        review_id = st.selectbox(
+            "Case", queue_ids, index=queue_ids.index(default_id),
+            format_func=lambda rid: f"#{rid}" + (" 🚨 appealed" if rid in pending_appeals else ""),
+        )
+        st.session_state["queue_review_id"] = review_id
+        is_appealed = review_id in pending_appeals
+
+        row = sample[sample["review_id"] == review_id].iloc[0]
+        user_id, prod_id = str(int(row["user_id"])), str(int(row["prod_id"]))
+        st.markdown(f"**Rating:** {'⭐' * int(row['rating'])} &nbsp;&nbsp; **Date:** {row['date']}")
+        st.info(row["review_text"])
+
+        with st.expander("Evidence — reviewer history"):
+            st.json(tb.reviewer_history_lookup(user_id, exclude_review_id=int(review_id)))
+        with st.expander("Evidence — business trend"):
+            st.json(tb.business_trend_lookup(prod_id, row["date"], exclude_review_id=int(review_id)))
+        with st.expander("Evidence — text similarity vs. reviewer"):
+            st.json(tb.text_similarity_check(row["review_text"], "reviewer", user_id, exclude_review_id=int(review_id)))
+        with st.expander("Evidence — text similarity vs. business"):
+            st.json(tb.text_similarity_check(row["review_text"], "business", prod_id, exclude_review_id=int(review_id)))
+
+        agent_judgment = mlflow_tracking.get_agent_judgment(review_id, active_config["version"])
+        st.divider()
+        if agent_judgment is None:
+            st.info("The agent hasn't investigated this case under the active config yet.")
+            if st.button("▶ Run agent investigation"):
+                review = {
+                    "review_id": int(review_id), "user_id": user_id, "prod_id": prod_id,
+                    "rating": float(row["rating"]), "date": row["date"], "review_text": row["review_text"],
+                }
+                final_result = None
+                n_tool_calls = 0
+                with st.status("Investigating...", expanded=True) as status:
+                    for event in run_investigation_stream(review, active_config):
+                        if event["type"] == "error":
+                            status.update(label="Investigation failed", state="error")
+                            st.error(event["message"])
+                            break
+                        elif event["type"] == "tool_call":
+                            n_tool_calls += 1
+                            st.markdown(f"→ called `{event['tool']}`")
+                        elif event["type"] == "final":
+                            final_result = event
+                            status.update(label="Investigation complete", state="complete")
+                if final_result and final_result.get("predicted_filtered") is not None:
+                    mlflow_tracking.log_judgment(
+                        judge_type="agent", config_version=active_config["version"], review_id=review_id,
+                        true_filtered=bool(row["filtered"]), predicted_filtered=final_result["predicted_filtered"],
+                        confidence=final_result["confidence"], primary_signal=final_result["primary_signal"],
+                        reasoning=final_result.get("reasoning"), turns_used=final_result.get("turns_used"),
+                        n_tool_calls=n_tool_calls, provider=active_config["provider"], model=active_config["model"],
+                        temperature=active_config["temperature"],
+                    )
+                    st.rerun()
+        else:
+            predicted_filtered = agent_judgment["predicted_filtered"]
+            confidence = agent_judgment["confidence"] or 0.0
+            threshold = active_config["confidence_threshold"]
+            routing = compute_routing(predicted_filtered, confidence, threshold)
+
+            verdict_col, routing_col = st.columns(2)
+            with verdict_col:
+                st.metric("Agent's verdict", "Likely fake" if predicted_filtered else "Likely genuine",
+                          f"{confidence:.0%} confidence")
+            with routing_col:
+                st.metric("Agent's routing", ROUTING_LABELS[routing])
+            st.markdown(f"**Primary signal:** {agent_judgment['primary_signal']}")
+            st.markdown(f"**Agent's reasoning:** {agent_judgment['reasoning'] or '*(not recorded)*'}")
+
+            opposite_label = "Recommended (genuine)" if predicted_filtered else "Filtered (fake)"
+            st.divider()
+            with st.form(f"analyst_action_form_{review_id}"):
+                action_label = st.radio(
+                    "Your decision",
+                    ["Accept the agent's verdict", f"Override — mark as {opposite_label} instead",
+                     "Escalate for deeper review"],
+                )
+                reason = st.text_area("Reason (required for override or escalation)")
+                action_submitted = st.form_submit_button("Submit decision")
+
+            if action_submitted:
+                is_override = action_label.startswith("Override")
+                action_key = "override" if is_override else ("escalate" if action_label.startswith("Escalate") else "accept")
+                if action_key != "accept" and not reason.strip():
+                    st.error("A reason is required for an override or escalation.")
+                else:
+                    mlflow_tracking.log_analyst_action(
+                        config_version=active_config["version"], review_id=review_id,
+                        agent_confidence=confidence, action=action_key,
+                        override_to=(not predicted_filtered) if is_override else None,
+                        reason=reason, resolves_appeal=is_appealed,
+                    )
+                    mark_step_done(4)
+                    st.success(f"Logged: **{action_label}**" + (" — appeal resolved." if is_appealed else "."))
+                    st.rerun()
+
+
+# ============================================================
+# 6. CHECK MY REVIEW
+# ============================================================
+elif page == "6. Check My Review":
+    st.title("Check My Review")
+    st.caption("As the reviewer or business behind a review, see what happened to it and, if it "
+               "was removed, contest the decision. This mirrors what a real reviewer would "
+               "see — the ground truth used elsewhere in this dashboard is deliberately not "
+               "shown here, since a real reviewer wouldn't know it either.")
+
+    sample = load_sample()
+    review_id = st.selectbox("Your review", sample["review_id"].tolist(), key="reviewer_review_id")
+    row = sample[sample["review_id"] == review_id].iloc[0]
+    st.markdown(f"**Rating:** {'⭐' * int(row['rating'])} &nbsp;&nbsp; **Date:** {row['date']}")
+    st.info(row["review_text"])
+
+    agent_judgment = mlflow_tracking.get_agent_judgment(review_id, active_config["version"])
+    st.divider()
+
+    if agent_judgment is None:
+        st.info("This review hasn't been checked against the current agent config yet.")
+        if st.button("Check status now", type="primary"):
+            review = {
+                "review_id": int(review_id), "user_id": str(int(row["user_id"])),
+                "prod_id": str(int(row["prod_id"])), "rating": float(row["rating"]),
+                "date": row["date"], "review_text": row["review_text"],
+            }
+            final_result = None
+            n_tool_calls = 0
+            with st.status("Checking...", expanded=False) as status:
+                for event in run_investigation_stream(review, active_config):
+                    if event["type"] == "error":
+                        status.update(label="Check failed", state="error")
+                        st.error(event["message"])
+                        break
+                    elif event["type"] == "tool_call":
+                        n_tool_calls += 1
+                    elif event["type"] == "final":
+                        final_result = event
+                        status.update(label="Done", state="complete")
+            if final_result and final_result.get("predicted_filtered") is not None:
+                mlflow_tracking.log_judgment(
+                    judge_type="agent", config_version=active_config["version"], review_id=review_id,
+                    true_filtered=bool(row["filtered"]), predicted_filtered=final_result["predicted_filtered"],
+                    confidence=final_result["confidence"], primary_signal=final_result["primary_signal"],
+                    reasoning=final_result.get("reasoning"), turns_used=final_result.get("turns_used"),
+                    n_tool_calls=n_tool_calls, provider=active_config["provider"], model=active_config["model"],
+                    temperature=active_config["temperature"],
+                )
+                st.rerun()
+    else:
+        predicted_filtered = agent_judgment["predicted_filtered"]
+        confidence = agent_judgment["confidence"] or 0.0
+        threshold = active_config["confidence_threshold"]
+        routing = compute_routing(predicted_filtered, confidence, threshold)
+
+        if routing == "auto_remove":
+            st.error("🔴 Your review was removed automatically.")
+        elif routing == "queue":
+            st.warning("🟡 Your review is flagged and waiting on a human reviewer's decision.")
+        else:
+            st.success("🟢 Your review is live — no action was taken.")
+        st.markdown(f"**Why:** {agent_judgment['reasoning'] or '*(not recorded)*'}")
+        mark_step_done(5)
+
+        if routing == "auto_remove":
+            pending = mlflow_tracking.get_pending_appeals(active_config["version"])
+            just_appealed = st.session_state.get("last_appeal_review_id") == review_id
+
+            if review_id in pending:
+                st.info("You've already appealed this decision — it's waiting in the Analyst Queue for human review.")
+                if just_appealed and st.button("See the Analyst Queue →", type="primary"):
+                    st.session_state.pop("last_appeal_review_id", None)
+                    goto("5. Analyst Queue", queue_review_id=review_id)
+            else:
+                st.session_state.pop("last_appeal_review_id", None)
+                with st.form(f"appeal_form_{review_id}"):
+                    note = st.text_area("Optional: add context for the reviewer (why you believe this is genuine)")
+                    appeal_submitted = st.form_submit_button("Appeal this decision")
+                if appeal_submitted:
+                    mlflow_tracking.log_appeal(review_id=review_id, config_version=active_config["version"], note=note)
+                    st.session_state["last_appeal_review_id"] = review_id
+                    st.rerun()
+
+
+# ============================================================
+# 7. PLAY — TWEAK THE AGENT
+# ============================================================
+elif page == "7. Play — Tweak the Agent":
     st.title("Play — you're the PM now")
     st.caption("Change the agent's system prompt, temperature, provider, or auto-remove threshold. One click deploys a new version — past versions stay comparable.")
 
@@ -503,11 +741,16 @@ elif page == "5. Play — Tweak the Agent":
             model=model, confidence_threshold=confidence_threshold, reason=reason,
         )
         st.session_state.pop("config_prefill", None)
-        mark_step_done(4)
-        st.success(f"Deployed **{new_version['version']}**: {new_version['reason']}")
-        if st.button("See how this changed performance →", type="primary"):
-            goto("6. Track Performance")
+        mark_step_done(6)
+        st.session_state["just_deployed"] = new_version
         st.rerun()
+
+    if st.session_state.get("just_deployed"):
+        jd = st.session_state["just_deployed"]
+        st.success(f"Deployed **{jd['version']}**: {jd['reason']}")
+        if st.button("See how this changed performance →", type="primary"):
+            st.session_state.pop("just_deployed", None)
+            goto("8. Track Performance")
 
     st.divider()
     st.subheader("Version history")
@@ -527,9 +770,9 @@ elif page == "5. Play — Tweak the Agent":
 
 
 # ============================================================
-# 6. TRACK PERFORMANCE
+# 8. TRACK PERFORMANCE
 # ============================================================
-elif page == "6. Track Performance":
+elif page == "8. Track Performance":
     st.title("Track Performance")
     st.caption("Every human and agent judgment, grouped by config version — logged to MLflow, not a hand-rolled CSV.")
 

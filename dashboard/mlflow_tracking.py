@@ -21,9 +21,13 @@ mlflow.set_experiment(EXPERIMENT_NAME)
 
 
 def log_judgment(*, judge_type, config_version, review_id, true_filtered, predicted_filtered,
-                  confidence, primary_signal, turns_used=None, n_tool_calls=None, provider=None,
-                  model=None, temperature=None, extra_tags=None):
-    """judge_type: 'human' or 'agent'. Logs one MLflow run per judged review."""
+                  confidence, primary_signal, reasoning=None, turns_used=None, n_tool_calls=None,
+                  provider=None, model=None, temperature=None, extra_tags=None):
+    """judge_type: 'human' or 'agent'. Logs one MLflow run per judged review.
+
+    reasoning is stored as a tag (truncated) so the Analyst Queue and Check My
+    Review pages can retrieve a past agent judgment's explanation without
+    needing to re-run the agent."""
     correct = (predicted_filtered == true_filtered) if predicted_filtered is not None else False
 
     with mlflow.start_run(run_name=f"{judge_type}_{config_version}_{review_id}"):
@@ -34,6 +38,8 @@ def log_judgment(*, judge_type, config_version, review_id, true_filtered, predic
             mlflow.set_tag("provider", provider)
         if model:
             mlflow.set_tag("model", model)
+        if reasoning:
+            mlflow.set_tag("reasoning", str(reasoning)[:800])
         if extra_tags:
             for k, v in extra_tags.items():
                 mlflow.set_tag(k, v)
@@ -51,6 +57,87 @@ def log_judgment(*, judge_type, config_version, review_id, true_filtered, predic
         if n_tool_calls is not None:
             mlflow.log_metric("n_tool_calls", n_tool_calls)
         mlflow.set_tag("primary_signal", primary_signal or "")
+
+
+def get_agent_judgment(review_id, config_version):
+    """Returns the most recent real agent judgment for this review under this
+    config version, or None if the agent hasn't investigated it yet. Lets the
+    Analyst Queue and Check My Review pages show a past verdict without
+    re-running the LLM."""
+    runs = get_all_runs()
+    if runs.empty or "tags.judge_type" not in runs.columns:
+        return None
+    mask = ((runs["tags.judge_type"] == "agent") & (runs.get("tags.config_version") == config_version)
+             & (runs.get("tags.review_id") == str(review_id)))
+    sub = runs.loc[mask]
+    if sub.empty:
+        return None
+    row = sub.iloc[-1]
+    predicted = row.get("metrics.predicted_filtered")
+    return {
+        "predicted_filtered": bool(predicted) if pd.notna(predicted) else None,
+        "confidence": row.get("metrics.confidence"),
+        "primary_signal": row.get("tags.primary_signal", ""),
+        "reasoning": row.get("tags.reasoning", ""),
+    }
+
+
+def log_analyst_action(*, config_version, review_id, agent_confidence, action, override_to=None,
+                        reason="", resolves_appeal=False):
+    """Logs a real, inspectable analyst decision on an agent-investigated case —
+    separate from the agent's own judgment run — so agreement/override rate is
+    a real, queryable metric rather than invisible. action: 'accept' | 'override'
+    | 'escalate'."""
+    with mlflow.start_run(run_name=f"analyst_{config_version}_{review_id}_{action}"):
+        mlflow.set_tag("record_type", "analyst_action")
+        mlflow.set_tag("config_version", config_version)
+        mlflow.set_tag("review_id", str(review_id))
+        mlflow.set_tag("action", action)
+        if override_to is not None:
+            mlflow.set_tag("override_to", str(override_to))
+        if reason:
+            mlflow.set_tag("reason", str(reason)[:800])
+        mlflow.log_metric("agent_confidence", agent_confidence or 0.0)
+        mlflow.log_metric("agreed_with_agent", int(action == "accept"))
+    if resolves_appeal:
+        resolve_appeal(review_id, config_version)
+
+
+def log_appeal(*, review_id, config_version, note=""):
+    """A reviewer/business contesting an auto-removal. Status starts 'pending'
+    and shows up in the Analyst Queue until an analyst acts on it."""
+    with mlflow.start_run(run_name=f"appeal_{config_version}_{review_id}"):
+        mlflow.set_tag("record_type", "appeal")
+        mlflow.set_tag("config_version", config_version)
+        mlflow.set_tag("review_id", str(review_id))
+        mlflow.set_tag("status", "pending")
+        if note:
+            mlflow.set_tag("note", str(note)[:800])
+
+
+def get_pending_appeals(config_version):
+    """review_ids with a pending appeal under this config version, most recent first."""
+    runs = get_all_runs()
+    if runs.empty or "tags.record_type" not in runs.columns:
+        return []
+    mask = ((runs["tags.record_type"] == "appeal") & (runs.get("tags.config_version") == config_version)
+             & (runs.get("tags.status") == "pending"))
+    ids = runs.loc[mask, "tags.review_id"].astype(int).tolist()
+    return list(dict.fromkeys(reversed(ids)))  # de-dup, most recent first
+
+
+def resolve_appeal(review_id, config_version):
+    """Marks any pending appeal for this review/config as resolved, once an
+    analyst has acted on it."""
+    from mlflow.tracking import MlflowClient
+    runs = get_all_runs()
+    if runs.empty or "tags.record_type" not in runs.columns:
+        return
+    mask = ((runs["tags.record_type"] == "appeal") & (runs.get("tags.config_version") == config_version)
+             & (runs.get("tags.review_id") == str(review_id)) & (runs.get("tags.status") == "pending"))
+    client = MlflowClient()
+    for run_id in runs.loc[mask, "run_id"]:
+        client.set_tag(run_id, "status", "resolved")
 
 
 def _wilson_ci(successes, n, z=1.96):
