@@ -193,11 +193,18 @@ they correctly flag a coordinated campaign that a text-only classifier missed en
 - **Bring-your-own-credentials in the public deployment.** Any visitor trying the live
   agent uses their own API key, entered client-side and never persisted — the project
   owner's key and quota are never exposed to public traffic.
-- **A real, caught reasoning-faithfulness issue.** In one of the three hand-picked hard
-  cases, the live agent's *stated* reasoning ("brand-new account") directly contradicted
-  its own tool output (8 other reviews existed for that account) — a genuine unfaithful-
-  reasoning failure mode, documented rather than smoothed over, and directly relevant to
-  trusting any auto-remove decision made on the agent's stated rationale.
+- **A real, caught reasoning-faithfulness issue — and an honest note on re-testing it.**
+  In one of the three hand-picked hard cases (review_id 418812), an early live run's
+  *stated* reasoning ("brand-new account") directly contradicted its own tool output (8
+  other reviews existed for that account) — a genuine unfaithful-reasoning failure mode,
+  documented rather than smoothed over. After switching the agent's implementation from
+  a hand-rolled per-provider loop to the Agno framework (see the build decision log), the
+  same case was re-run under an identical config and did *not* reproduce the error —
+  the reasoning that time correctly cited the 8 prior reviews. That's a genuinely
+  encouraging result, but it's one re-run of a temperature>0 system, not proof the failure
+  mode is resolved — a single non-repro doesn't clear a bug on a stochastic model any
+  more than a single repro would prove it's universal. Treated the same as every other
+  small-n result in this project: reported honestly, not overclaimed.
 
 ## 9. Evaluation Plan & Live Playground
 

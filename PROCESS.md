@@ -416,6 +416,51 @@ a public URL — the toolkit's Render option is there if a shareable link is eve
 but standing that up requires the user's own GitHub↔Render OAuth connection, which can't
 be scripted headlessly.
 
+**#16 — Switched the live agent from a hand-rolled per-provider loop to the Agno
+framework**
+The original `live_agent.py` had three separate functions (`_run_openai_compat`,
+`_run_claude`, `_run_gemini`), each hand-written to match one provider's different
+request/response shape — the same problem Decision #4 already hit once when the
+project's provider changed mid-build. Assessed the tradeoff explicitly before switching
+(not just because a framework sounded better): a hand-rolled loop is itself a legitimate
+signal of understanding what a framework abstracts away, so this wasn't a strict
+upgrade for every reader — but the maintenance cost of three growing provider-specific
+functions was real and already documented, so proceeded.
+
+Verified live before trusting it, not assumed from documentation: installed `agno`
+fresh, inspected its actual `Agent`/model-class API via `inspect` rather than guessing
+at a remembered signature, and found a real, non-obvious provider constraint through a
+failed live call — Groq rejects combining JSON-mode structured output with tool/function
+calling in one request. That's exactly why the original design used a `submit_judgment`
+tool instead of a structured-output schema; the same pattern carries over to the Agno
+build, using `@tool(stop_after_tool_call=True)` (verified live: this ends the run
+immediately after that tool executes, avoiding a wasted extra model call the naive
+version made to restate the judgment in prose).
+
+Rewrote `dashboard/live_agent.py` to build one `Agent` per provider via Agno's model
+classes (`Groq`, `Claude`, `Gemini`, `OpenRouter`) instead of three bespoke loops, while
+reusing `tool_schemas.dispatch_tool_call()` unchanged inside each Agno tool function —
+the self-exclusion logic (Decision-relevant, documented in TOOLS.md) couldn't drift out
+of sync because it was never duplicated, only wrapped. Shimmed Agno's real event stream
+(`ModelRequestStartedEvent`, `ToolCallCompletedEvent`, etc.) into the exact same
+`{"type": "turn"/"tool_call"/"final"/"error"}` shape the dashboard's three consuming
+pages already expected, so `app.py` needed zero changes.
+
+Added a `framework` MLflow tag (`"agno"`) to every live-agent judgment logged from this
+point forward, so pre-switch and post-switch runs are distinguishable in Track
+Performance rather than silently blending under the same config version.
+
+**Re-validated the honesty-relevant claim rather than letting it go stale.** The case
+study documented a real reasoning-fidelity bug (the agent's stated reasoning claiming a
+"brand-new account" when the tool data showed 8 prior reviews, on review_id 418812). Re-ran
+all three hard cases (`scripts/rerun_hard_cases_agno.py`) under the new implementation,
+same v0 config, live against Groq. Result: 2/3 correct (up from the previously-documented
+1/3), and that specific bug did not reproduce on this run — the reasoning correctly cited
+the 8 prior reviews this time. Reported as exactly what it is: an encouraging single
+re-run of a stochastic system, not proof the failure mode is fixed — updated
+`PRODUCT_CASE_STUDY.md` §8 with that exact hedge rather than either silently dropping the
+caveat or overclaiming a fix.
+
 ---
 
 ## 5. What a Real Production Build Would Add On Top of This

@@ -480,7 +480,7 @@ elif page == "4. Try it — Agent":
                     primary_signal=final_result["primary_signal"], reasoning=final_result.get("reasoning"),
                     turns_used=final_result.get("turns_used"),
                     n_tool_calls=n_tool_calls, provider=active_config["provider"], model=active_config["model"],
-                    temperature=active_config["temperature"],
+                    temperature=active_config["temperature"], extra_tags={"framework": "agno"},
                 )
                 mark_step_done(3)
             elif final_result:
@@ -568,7 +568,7 @@ elif page == "5. Analyst Queue":
                         confidence=final_result["confidence"], primary_signal=final_result["primary_signal"],
                         reasoning=final_result.get("reasoning"), turns_used=final_result.get("turns_used"),
                         n_tool_calls=n_tool_calls, provider=active_config["provider"], model=active_config["model"],
-                        temperature=active_config["temperature"],
+                        temperature=active_config["temperature"], extra_tags={"framework": "agno"},
                     )
                     st.rerun()
         else:
@@ -661,7 +661,7 @@ elif page == "6. Check My Review":
                     confidence=final_result["confidence"], primary_signal=final_result["primary_signal"],
                     reasoning=final_result.get("reasoning"), turns_used=final_result.get("turns_used"),
                     n_tool_calls=n_tool_calls, provider=active_config["provider"], model=active_config["model"],
-                    temperature=active_config["temperature"],
+                    temperature=active_config["temperature"], extra_tags={"framework": "agno"},
                 )
                 st.rerun()
     else:
