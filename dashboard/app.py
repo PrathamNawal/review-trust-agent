@@ -34,11 +34,120 @@ NAV_OPTIONS = [
 ]
 
 PERSONAS = {
-    "analyst": {"label": "🕵️ Trust & Safety Analyst", "landing": "5. Analyst Queue"},
-    "pm": {"label": "🎛️ Policy Owner / PM", "landing": "7. Play — Tweak the Agent"},
-    "reviewer": {"label": "📝 Reviewer / Business", "landing": "6. Check My Review"},
-    "explorer": {"label": "🔎 Just exploring", "landing": "1. What is this?"},
+    "analyst": {"label": "🕵️ Trust & Safety Analyst", "landing": "5. Analyst Queue",
+                "desc": "Review the agent's queued cases fast, with a visible reasoning trail."},
+    "pm": {"label": "🎛️ Policy Owner / PM", "landing": "7. Play — Tweak the Agent",
+           "desc": "Tune the agent and see the real before/after impact."},
+    "reviewer": {"label": "📝 Reviewer / Business", "landing": "6. Check My Review",
+                 "desc": "See why a decision was made on your review — and contest it."},
+    "explorer": {"label": "🔎 Just exploring", "landing": "1. What is this?",
+                 "desc": "Take the guided, 7-step tour of the whole system."},
 }
+
+TOOL_TITLES = {
+    "reviewer_history_lookup": "🕵️ Reviewer History",
+    "business_trend_lookup": "📈 Business Trend",
+    "text_similarity_reviewer": "🔎 Text Similarity vs. Reviewer",
+    "text_similarity_business": "🔎 Text Similarity vs. Business",
+}
+
+_CSS = """
+<style>
+:root {
+    --rta-danger-bg: #fde8e8; --rta-danger-fg: #b91c1c;
+    --rta-warning-bg: #fef3c7; --rta-warning-fg: #92400e;
+    --rta-safe-bg: #d1fae5; --rta-safe-fg: #065f46;
+}
+.rta-hero-stat { padding: 4px 0; }
+.rta-hero-stat-label { font-size: 0.8rem; color: var(--rta-hero-muted, #6b7280); font-weight: 500; }
+.rta-hero-stat-value { font-size: 2.1rem; font-weight: 700; line-height: 1.3; }
+.rta-hero-stat-caption { font-size: 0.78rem; color: var(--rta-hero-muted, #6b7280); margin-top: 2px; }
+.rta-badge {
+    display: inline-block; padding: 3px 12px; border-radius: 999px;
+    font-weight: 600; font-size: 0.85rem; white-space: nowrap;
+}
+.rta-badge-danger { background: var(--rta-danger-bg); color: var(--rta-danger-fg); }
+.rta-badge-warning { background: var(--rta-warning-bg); color: var(--rta-warning-fg); }
+.rta-badge-safe { background: var(--rta-safe-bg); color: var(--rta-safe-fg); }
+.rta-card-title {
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--rta-hero-muted, #6b7280); font-weight: 600; margin-bottom: 6px;
+}
+.rta-snippet {
+    font-size: 0.85rem; font-style: italic; color: var(--rta-hero-muted, #6b7280);
+    border-left: 2px solid #d1d5db; padding-left: 8px; margin: 4px 0;
+}
+</style>
+"""
+
+
+def inject_css():
+    st.markdown(_CSS, unsafe_allow_html=True)
+
+
+def render_badge(text, tone):
+    st.markdown(f'<span class="rta-badge rta-badge-{tone}">{text}</span>', unsafe_allow_html=True)
+
+
+ROUTING_TONE = {"auto_remove": "danger", "queue": "warning", "ignore": "safe"}
+
+
+def render_hero_stat(container, label, value, caption, tone="neutral"):
+    color = {"danger": "var(--rta-danger-fg)", "warning": "var(--rta-warning-fg)", "neutral": "inherit"}[tone]
+    container.markdown(
+        f'<div class="rta-hero-stat">'
+        f'<div class="rta-hero-stat-label">{label}</div>'
+        f'<div class="rta-hero-stat-value" style="color:{color}">{value}</div>'
+        f'<div class="rta-hero-stat-caption">{caption}</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_evidence_card(container, tool_key, data):
+    """Renders one evidence tool's real output as a scannable metric-tile card
+    instead of a raw JSON tree — same data, legible at a glance."""
+    with container.container(border=True):
+        st.markdown(f'<div class="rta-card-title">{TOOL_TITLES.get(tool_key, tool_key)}</div>',
+                     unsafe_allow_html=True)
+        if data.get("note"):
+            st.caption(f"ℹ️ {data['note']}")
+
+        skip_keys = {"note", "similar_snippets", "user_id", "prod_id"}
+        metric_pairs = [(k.replace("_", " ").capitalize(), v) for k, v in data.items() if k not in skip_keys]
+        if metric_pairs:
+            cols = st.columns(min(len(metric_pairs), 3) or 1)
+            for i, (label, val) in enumerate(metric_pairs):
+                display_val = "—" if val is None else val
+                cols[i % len(cols)].metric(label, display_val)
+
+        for snippet in (data.get("similar_snippets") or [])[:2]:
+            st.markdown(f'<div class="rta-snippet">"{snippet["snippet"][:130]}…" '
+                        f'(similarity {snippet["similarity"]:.2f})</div>', unsafe_allow_html=True)
+
+
+def resolve_tool_key(tool_name, tool_input):
+    """text_similarity_check covers two distinct comparisons (vs. reviewer, vs.
+    business) that TOOL_TITLES labels separately — disambiguate using the
+    actual tool call's compare_against argument."""
+    if tool_name == "text_similarity_check":
+        return f"text_similarity_{tool_input.get('compare_against', 'reviewer')}"
+    return tool_name
+
+
+def render_evidence_grid(container, tb, review_id, user_id, prod_id, review_text, date):
+    """The four evidence lookups, as a 2x2 grid of cards — always visible, not
+    hidden behind click-to-expand, since being scannable at a glance is the point."""
+    c1, c2 = container.columns(2)
+    render_evidence_card(c1, "reviewer_history_lookup",
+                          tb.reviewer_history_lookup(user_id, exclude_review_id=review_id))
+    render_evidence_card(c2, "business_trend_lookup",
+                          tb.business_trend_lookup(prod_id, date, exclude_review_id=review_id))
+    c3, c4 = container.columns(2)
+    render_evidence_card(c3, "text_similarity_reviewer",
+                          tb.text_similarity_check(review_text, "reviewer", user_id, exclude_review_id=review_id))
+    render_evidence_card(c4, "text_similarity_business",
+                          tb.text_similarity_check(review_text, "business", prod_id, exclude_review_id=review_id))
 
 QUICK_EXPERIMENTS = {
     "cautious": {
@@ -102,19 +211,28 @@ def render_progress(current_idx):
 
 @st.dialog("👋 Welcome to Review Trust Agent")
 def welcome_dialog():
+    inject_css()
     st.markdown(
         "This dashboard covers the full agentic fraud-detection system for Yelp reviews — "
         "built to be explored, not just read about. It plays out differently depending on "
         "who you are. Pick the closest fit:"
     )
-    for key, p in PERSONAS.items():
-        if st.button(p["label"], key=f"persona_welcome_{key}", type="primary" if key == "explorer" else "secondary"):
-            st.session_state["welcomed"] = True
-            st.session_state["persona"] = key
-            goto(p["landing"])
+    persona_items = list(PERSONAS.items())
+    for row_start in (0, 2):
+        cols = st.columns(2)
+        for col, (key, p) in zip(cols, persona_items[row_start:row_start + 2]):
+            with col.container(border=True):
+                st.markdown(f"**{p['label']}**")
+                st.caption(p["desc"])
+                if st.button("Choose", key=f"persona_welcome_{key}",
+                             type="primary" if key == "explorer" else "secondary", width="stretch"):
+                    st.session_state["welcomed"] = True
+                    st.session_state["persona"] = key
+                    goto(p["landing"])
 
 
 # ---------- one-time setup ----------
+inject_css()
 if "seeded" not in st.session_state:
     mlflow_tracking.seed_historical_baselines()
     st.session_state["seeded"] = True
@@ -149,26 +267,29 @@ def judged_review_ids(judge_type, config_version):
 # ---------- sidebar: persona + nav + API keys ----------
 st.sidebar.title("Review Trust Agent")
 
+st.sidebar.caption("NAVIGATION")
 persona_keys = list(PERSONAS.keys())
 st.session_state.setdefault("persona", "explorer")
 st.sidebar.selectbox(
     "I am a...", persona_keys, format_func=lambda k: PERSONAS[k]["label"], key="persona",
 )
-
 page = st.sidebar.radio("View", NAV_OPTIONS, key="nav")
 
 st.sidebar.divider()
-st.sidebar.caption("API keys — only needed for live agent investigations (steps 4–6; session only, never written to disk)")
-for env_name, label in [("GROQ_API_KEY", "Groq"), ("OPENROUTER_API_KEY", "OpenRouter"),
-                         ("GOOGLE_API_KEY", "Gemini"), ("ANTHROPIC_API_KEY", "Claude")]:
-    current = os.environ.get(env_name, "")
-    entered = st.sidebar.text_input(label, value=current, type="password", key=f"key_{env_name}")
-    if entered:
-        os.environ[env_name] = entered
+st.sidebar.caption("API KEYS")
+with st.sidebar.expander("🔑 Add your keys", expanded=False):
+    st.caption("Only needed for live agent investigations (steps 4–6). Session only, never written to disk.")
+    for env_name, label in [("GROQ_API_KEY", "Groq"), ("OPENROUTER_API_KEY", "OpenRouter"),
+                             ("GOOGLE_API_KEY", "Gemini"), ("ANTHROPIC_API_KEY", "Claude")]:
+        current = os.environ.get(env_name, "")
+        entered = st.text_input(label, value=current, type="password", key=f"key_{env_name}")
+        if entered:
+            os.environ[env_name] = entered
 
 active_config = config_store.get_active_config()
 st.sidebar.divider()
-st.sidebar.caption(f"Active config: **{active_config['version']}** ({active_config['provider']}/{active_config['model']})")
+st.sidebar.caption("STATUS")
+st.sidebar.markdown(f"Active config: **{active_config['version']}** ({active_config['provider']}/{active_config['model']})")
 
 render_progress(NAV_OPTIONS.index(page))
 
@@ -189,9 +310,13 @@ if page == "1. What is this?":
     )
 
     c1, c2, c3 = st.columns(3)
-    c1.metric("A trained human's accuracy", "56%", help="16-review golden-set benchmark, blind labeling. Matches published literature (50-65%).")
-    c2.metric("The agent's accuracy", "84%", help="50-review batch. Sounds better — but read the next number.")
-    c3.metric("...but its fraud recall", "0%", help="The agent missed every single actually-fake review in that batch. High accuracy with zero recall on the class that matters — the central finding of this project.")
+    render_hero_stat(c1, "A trained human's accuracy", "56%",
+                      "16-review golden-set benchmark, blind labeling — matches published literature (50-65%).")
+    render_hero_stat(c2, "The agent's accuracy", "84%",
+                      "50-review batch. Sounds better — but read the next number.", tone="warning")
+    render_hero_stat(c3, "...but its fraud recall", "0%",
+                      "Missed every actually-fake review in that batch — the central finding of this project.",
+                      tone="danger")
 
     st.info(
         "That gap — high accuracy, zero recall on fraud — is the whole point of this dashboard. "
@@ -319,14 +444,7 @@ elif page == "3. Try it — Human":
         st.markdown(f"**Rating:** {'⭐' * int(row['rating'])} &nbsp;&nbsp; **Date:** {row['date']}")
         st.info(row["review_text"])
 
-        with st.expander("Evidence — reviewer history", expanded=True):
-            st.json(tb.reviewer_history_lookup(user_id, exclude_review_id=int(review_id)))
-        with st.expander("Evidence — business trend", expanded=True):
-            st.json(tb.business_trend_lookup(prod_id, row["date"], exclude_review_id=int(review_id)))
-        with st.expander("Evidence — text similarity vs. reviewer"):
-            st.json(tb.text_similarity_check(row["review_text"], "reviewer", user_id, exclude_review_id=int(review_id)))
-        with st.expander("Evidence — text similarity vs. business"):
-            st.json(tb.text_similarity_check(row["review_text"], "business", prod_id, exclude_review_id=int(review_id)))
+        render_evidence_grid(st, tb, int(review_id), user_id, prod_id, row["review_text"], row["date"])
 
         st.divider()
         with st.form("human_judgment_form"):
@@ -439,8 +557,8 @@ elif page == "4. Try it — Agent":
                         trace_area.markdown(f"**Turn {event['turn'] + 1}**")
                     elif event["type"] == "tool_call":
                         n_tool_calls += 1
-                        trace_area.markdown(f"→ called `{event['tool']}`")
-                        trace_area.json(event["result"])
+                        render_evidence_card(trace_area, resolve_tool_key(event["tool"], event["input"]),
+                                              event["result"])
                     elif event["type"] == "final":
                         final_result = event
                         status.update(label="Investigation complete", state="complete")
@@ -459,7 +577,8 @@ elif page == "4. Try it — Agent":
                     st.metric("Verdict", "Likely fake" if predicted_filtered else "Likely genuine",
                               f"{confidence:.0%} confidence")
                 with routing_col:
-                    st.metric("Routing decision", ROUTING_LABELS[routing])
+                    st.caption("Routing decision")
+                    render_badge(ROUTING_LABELS[routing], ROUTING_TONE[routing])
                     if routing == "queue":
                         st.caption("⚠️ Confidence fell below the threshold — the policy falls back to a human, "
                                    "exactly as designed, rather than guessing.")
@@ -529,14 +648,7 @@ elif page == "5. Analyst Queue":
         st.markdown(f"**Rating:** {'⭐' * int(row['rating'])} &nbsp;&nbsp; **Date:** {row['date']}")
         st.info(row["review_text"])
 
-        with st.expander("Evidence — reviewer history"):
-            st.json(tb.reviewer_history_lookup(user_id, exclude_review_id=int(review_id)))
-        with st.expander("Evidence — business trend"):
-            st.json(tb.business_trend_lookup(prod_id, row["date"], exclude_review_id=int(review_id)))
-        with st.expander("Evidence — text similarity vs. reviewer"):
-            st.json(tb.text_similarity_check(row["review_text"], "reviewer", user_id, exclude_review_id=int(review_id)))
-        with st.expander("Evidence — text similarity vs. business"):
-            st.json(tb.text_similarity_check(row["review_text"], "business", prod_id, exclude_review_id=int(review_id)))
+        render_evidence_grid(st, tb, int(review_id), user_id, prod_id, row["review_text"], row["date"])
 
         agent_judgment = mlflow_tracking.get_agent_judgment(review_id, active_config["version"])
         st.divider()
@@ -557,7 +669,8 @@ elif page == "5. Analyst Queue":
                             break
                         elif event["type"] == "tool_call":
                             n_tool_calls += 1
-                            st.markdown(f"→ called `{event['tool']}`")
+                            render_evidence_card(st, resolve_tool_key(event["tool"], event["input"]),
+                                                  event["result"])
                         elif event["type"] == "final":
                             final_result = event
                             status.update(label="Investigation complete", state="complete")
@@ -582,7 +695,8 @@ elif page == "5. Analyst Queue":
                 st.metric("Agent's verdict", "Likely fake" if predicted_filtered else "Likely genuine",
                           f"{confidence:.0%} confidence")
             with routing_col:
-                st.metric("Agent's routing", ROUTING_LABELS[routing])
+                st.caption("Agent's routing")
+                render_badge(ROUTING_LABELS[routing], ROUTING_TONE[routing])
             st.markdown(f"**Primary signal:** {agent_judgment['primary_signal']}")
             st.markdown(f"**Agent's reasoning:** {agent_judgment['reasoning'] or '*(not recorded)*'}")
 
