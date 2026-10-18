@@ -21,6 +21,10 @@ class AgentConfig(TypedDict, total=False):
     model: str
     temperature: float
     confidence_threshold: float
+    jev_method: str
+    jev_threshold: float
+    jev_prompts: dict[str, str]
+    jev_evidence_sources: list[str]
 
 
 class TraceEvent(TypedDict, total=False):

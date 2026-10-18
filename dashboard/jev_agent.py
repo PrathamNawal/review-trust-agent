@@ -9,7 +9,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from dashboard.agent_architectures import register_architecture
-from dashboard.jev_model import JevAPIError, classify_review
+from dashboard.config_store import DEFAULT_JEV_EVIDENCE_SOURCES, DEFAULT_JEV_PROMPTS
+from dashboard.jev_model import DECISION_METHODS, JevAPIError, classify_review
 from dashboard.live_agent import get_toolbox
 
 
@@ -45,56 +46,67 @@ def _prior_rows(toolbox, column, entity_id, target_date):
     return rows[rows["date"] < pd.Timestamp(target_date)].sort_values("date")
 
 
-def _time_aware_evidence(toolbox, review):
-    """Build the same four evidence fields while excluding future reviews."""
+def _time_aware_evidence(toolbox, review, selected_sources=None):
+    """Build selected evidence fields while excluding future reviews."""
+    selected_sources = set(selected_sources or (
+        "reviewer_history", "business_trend", "reviewer_text_similarity",
+        "business_text_similarity",
+    ))
     target_date = pd.Timestamp(review["date"])
-    reviewer_rows = _prior_rows(toolbox, "user_id", review["user_id"], target_date)
-    business_rows = _prior_rows(toolbox, "prod_id", review["prod_id"], target_date)
+    reviewer_rows = None
+    business_rows = None
+    if selected_sources.intersection({"reviewer_history", "reviewer_text_similarity"}):
+        reviewer_rows = _prior_rows(toolbox, "user_id", review["user_id"], target_date)
+    if selected_sources.intersection({"business_trend", "business_text_similarity"}):
+        business_rows = _prior_rows(toolbox, "prod_id", review["prod_id"], target_date)
 
-    if reviewer_rows.empty:
-        reviewer_history = {
-            "user_id": str(review["user_id"]), "other_review_count": 0,
-            "note": "No earlier reviews found for this reviewer.",
-        }
-    else:
-        dates = reviewer_rows["date"].sort_values().tolist()
-        gaps = [(b - a).days for a, b in zip(dates, dates[1:])]
-        max_in_week = max(
-            sum(0 <= (other - date).days <= 7 for other in dates[i:])
-            for i, date in enumerate(dates)
-        )
-        rating_std = reviewer_rows["rating"].std()
-        reviewer_history = {
-            "user_id": str(review["user_id"]),
-            "other_review_count": len(reviewer_rows),
-            "avg_rating": round(float(reviewer_rows["rating"].mean()), 2),
-            "rating_std": round(float(rating_std), 2) if not math.isnan(rating_std) else 0.0,
-            "min_gap_days_between_reviews": min(gaps) if gaps else None,
-            "max_reviews_in_any_7_day_window": max_in_week,
-            "first_review_date": dates[0].strftime("%Y-%m-%d"),
-            "last_review_date": dates[-1].strftime("%Y-%m-%d"),
-        }
+    evidence = {}
+    if "reviewer_history" in selected_sources:
+        if reviewer_rows.empty:
+            evidence["reviewer_history"] = {
+                "user_id": str(review["user_id"]), "other_review_count": 0,
+                "note": "No earlier reviews found for this reviewer.",
+            }
+        else:
+            dates = reviewer_rows["date"].sort_values().tolist()
+            gaps = [(b - a).days for a, b in zip(dates, dates[1:])]
+            max_in_week = max(
+                sum(0 <= (other - date).days <= 7 for other in dates[i:])
+                for i, date in enumerate(dates)
+            )
+            rating_std = reviewer_rows["rating"].std()
+            evidence["reviewer_history"] = {
+                "user_id": str(review["user_id"]),
+                "other_review_count": len(reviewer_rows),
+                "avg_rating": round(float(reviewer_rows["rating"].mean()), 2),
+                "rating_std": round(float(rating_std), 2) if not math.isnan(rating_std) else 0.0,
+                "min_gap_days_between_reviews": min(gaps) if gaps else None,
+                "max_reviews_in_any_7_day_window": max_in_week,
+                "first_review_date": dates[0].strftime("%Y-%m-%d"),
+                "last_review_date": dates[-1].strftime("%Y-%m-%d"),
+            }
 
-    if business_rows.empty:
-        business_trend = {
-            "prod_id": str(review["prod_id"]), "other_review_count": 0,
-            "note": "No earlier reviews found for this business.",
-        }
-    else:
-        days_back = (target_date - business_rows["date"]).dt.days
-        window_rows = business_rows[(days_back >= 0) & (days_back <= 14)]
-        span = max((business_rows["date"].max() - business_rows["date"].min()).days, 1)
-        baseline_rate = len(business_rows) / span
-        window_rate = len(window_rows) / 14
-        business_trend = {
-            "prod_id": str(review["prod_id"]),
-            "other_review_count": len(business_rows),
-            "avg_rating_overall": round(float(business_rows["rating"].mean()), 2),
-            "reviews_in_window": len(window_rows),
-            "avg_rating_in_window": round(float(window_rows["rating"].mean()), 2) if len(window_rows) else None,
-            "window_days": 14,
-            "burst_ratio": round(window_rate / baseline_rate, 2) if baseline_rate > 0 else None,
-        }
+    if "business_trend" in selected_sources:
+        if business_rows.empty:
+            evidence["business_trend"] = {
+                "prod_id": str(review["prod_id"]), "other_review_count": 0,
+                "note": "No earlier reviews found for this business.",
+            }
+        else:
+            days_back = (target_date - business_rows["date"]).dt.days
+            window_rows = business_rows[(days_back >= 0) & (days_back <= 14)]
+            span = max((business_rows["date"].max() - business_rows["date"].min()).days, 1)
+            baseline_rate = len(business_rows) / span
+            window_rate = len(window_rows) / 14
+            evidence["business_trend"] = {
+                "prod_id": str(review["prod_id"]),
+                "other_review_count": len(business_rows),
+                "avg_rating_overall": round(float(business_rows["rating"].mean()), 2),
+                "reviews_in_window": len(window_rows),
+                "avg_rating_in_window": round(float(window_rows["rating"].mean()), 2) if len(window_rows) else None,
+                "window_days": 14,
+                "burst_ratio": round(window_rate / baseline_rate, 2) if baseline_rate > 0 else None,
+            }
 
     def similarity(rows):
         if rows.empty:
@@ -116,12 +128,11 @@ def _time_aware_evidence(toolbox, review):
             ],
         }
 
-    return {
-        "reviewer_history": reviewer_history,
-        "business_trend": business_trend,
-        "reviewer_text_similarity": similarity(reviewer_rows),
-        "business_text_similarity": similarity(business_rows),
-    }
+    if "reviewer_text_similarity" in selected_sources:
+        evidence["reviewer_text_similarity"] = similarity(reviewer_rows)
+    if "business_text_similarity" in selected_sources:
+        evidence["business_text_similarity"] = similarity(business_rows)
+    return evidence
 
 
 def run_jev_investigation_stream(review, config):
@@ -134,7 +145,14 @@ def run_jev_investigation_stream(review, config):
     try:
         yield {"type": "turn", "turn": 0}
         toolbox = get_toolbox()
-        evidence = _time_aware_evidence(toolbox, review)
+        selected_sources = config.get("jev_evidence_sources", DEFAULT_JEV_EVIDENCE_SOURCES)
+        if not selected_sources:
+            raise ValueError("Select at least one Jev evidence source in System Config.")
+        all_evidence = _time_aware_evidence(toolbox, review, selected_sources)
+        unknown_sources = set(selected_sources).difference(all_evidence)
+        if unknown_sources:
+            raise ValueError("The deployed Jev config contains an unknown evidence source.")
+        evidence = {key: all_evidence[key] for key in selected_sources}
         event_meta = {
             "reviewer_history": ("reviewer_history_lookup", {"user_id": review["user_id"]}),
             "business_trend": ("business_trend_lookup", {
@@ -145,27 +163,47 @@ def run_jev_investigation_stream(review, config):
                 "compare_against": "business", "target_id": review["prod_id"]}),
         }
         for key, (tool_name, tool_input) in event_meta.items():
+            if key not in evidence:
+                continue
             yield {"type": "tool_call", "turn": 0, "tool": tool_name,
                    "input": tool_input, "result": evidence[key]}
 
-        result = classify_review(review, evidence, api_key=api_key, model=MODEL_ID)
+        method = config.get("jev_method", "choice")
+        if method not in DECISION_METHODS:
+            raise ValueError("The deployed Jev config has an unsupported decision method.")
+        prompts = {**DEFAULT_JEV_PROMPTS, **config.get("jev_prompts", {})}
+        threshold = float(config.get("jev_threshold", 0.5))
+        result = classify_review(
+            review, evidence, api_key=api_key, model=MODEL_ID,
+            instructions=prompts[method], method=method, threshold=threshold,
+        )
         predicted = result["predicted_filtered"]
         choice_probabilities = result.get("choice_probabilities", {})
+        method_label = method.title()
+        if method == "choice":
+            decision_summary = f"Jev Choice selected {'filtered' if predicted else 'recommended'}"
+        else:
+            decision_summary = (
+                f"Jev {method_label} returned {result['decision_value']:.3f}; the configured "
+                f"threshold is {threshold:.2f}"
+            )
         reasoning = (
-            f"Jev Choice selected {'filtered' if predicted else 'recommended'} after reviewing "
-            "the available reviewer-history, business-trend, and text-similarity evidence. "
-            "This experimental label is not a calibrated fraud probability; a human must review it."
+            f"{decision_summary} after reviewing {len(evidence)} selected evidence source(s). "
+            "This experimental output is not a calibrated fraud probability; a human must review it."
         )
         yield {
             "type": "final",
             "predicted_filtered": predicted,
             "confidence": None,
             "confidence_calibrated": False,
-            "primary_signal": "combination",
+            "primary_signal": f"Jev {method_label}",
             "reasoning": reasoning,
             "turns_used": 1,
-            "jev_choice": "filtered" if predicted else "recommended",
+            "jev_choice": ("filtered" if predicted else "recommended") if method == "choice" else None,
             "jev_choice_probabilities": choice_probabilities,
+            "jev_method": method,
+            "jev_decision_value": result.get("decision_value"),
+            "jev_threshold": result.get("decision_threshold"),
             "model": result.get("model", MODEL_ID),
         }
     except JevAPIError as exc:

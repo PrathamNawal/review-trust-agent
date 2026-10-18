@@ -5,19 +5,40 @@ import streamlit as st
 import os
 
 from dashboard.agent_architectures import available_architectures
+from dashboard.config_store import DEFAULT_JEV_EVIDENCE_SOURCES, DEFAULT_JEV_PROMPTS
 from dashboard.evaluation import compare_configurations, load_evaluation_reviews
 from dashboard.live_agent import PROVIDER_PRESETS
 
 
+JEV_EVIDENCE_LABELS = {
+    "reviewer_history": "Reviewer activity",
+    "business_trend": "Business review-volume trend",
+    "reviewer_text_similarity": "Reviewer text reuse",
+    "business_text_similarity": "Business text reuse",
+}
+
 QUICK_EXPERIMENTS = {
-    "jev_best_recall": {
-        "label": "🔎 Use Jev Choice (experimental)",
-        "help": "Use Jev's direct Choice label. On 961 paired fresh-holdout reviews: 9.2% recall and 84.2% accuracy. Partial result; all cases stay in human review.",
+    "jev_choice": {
+        "label": "🔎 Jev Choice",
+        "help": "Use Jev's direct filtered/recommended label. No threshold is applied; all results stay in human review.",
         "changes": {
             "architecture": "jev", "provider": "typesafe", "model": "jev-1.13.0",
-            "temperature": 0.0, "confidence_threshold": 0.75,
-            "reason": "Use Jev Choice as an experimental advisory label; route every result to a human",
+            "jev_method": "choice", "reason": "Try Jev Choice as a human-reviewed advisory label",
         },
+    },
+    "jev_score": {
+        "label": "📏 Jev Score",
+        "help": "Explore Jev's 0–1 ordinal score. The threshold is experimental and does not control human review.",
+        "changes": {"architecture": "jev", "provider": "typesafe", "model": "jev-1.13.0",
+                    "jev_method": "score", "jev_threshold": 0.5,
+                    "reason": "Explore Jev Score with a 0.50 research threshold"},
+    },
+    "jev_noul": {
+        "label": "🧭 Jev Noul",
+        "help": "Explore Jev's 0–1 Noul output. It is not calibrated; the threshold is experimental.",
+        "changes": {"architecture": "jev", "provider": "typesafe", "model": "jev-1.13.0",
+                    "jev_method": "noul", "jev_threshold": 0.5,
+                    "reason": "Explore Jev Noul with a 0.50 research threshold"},
     },
     "cautious": {
         "label": "🐢 Make it more cautious",
@@ -43,22 +64,16 @@ def _deploy(config_store, candidate):
         provider=candidate["provider"], model=candidate["model"],
         confidence_threshold=candidate["confidence_threshold"],
         reason=candidate.get("reason", ""), architecture=candidate["architecture"],
+        jev_method=candidate.get("jev_method", "choice"),
+        jev_threshold=candidate.get("jev_threshold", 0.5),
+        jev_prompts=candidate.get("jev_prompts", DEFAULT_JEV_PROMPTS),
+        jev_evidence_sources=candidate.get("jev_evidence_sources", DEFAULT_JEV_EVIDENCE_SOURCES),
     )
 
 
 def render_configuration(config_store, active_config, mark_step_done, goto):
     st.title("Play — you're the PM now")
-    st.caption("Change the agent's system prompt, temperature, provider, or auto-remove threshold. One click deploys a new version — past versions stay comparable.")
-
-    st.markdown("**Quick experiments** — one click pre-fills the form below. You can deploy directly or evaluate first:")
-    exp_cols = st.columns(len(QUICK_EXPERIMENTS))
-    for col, (key, exp) in zip(exp_cols, QUICK_EXPERIMENTS.items()):
-        with col:
-            if st.button(exp["label"], help=exp["help"], key=f"exp_{key}"):
-                st.session_state["config_prefill"] = exp["changes"]
-                if "architecture" in exp["changes"]:
-                    st.session_state["selected_agent_architecture"] = exp["changes"]["architecture"]
-                st.rerun()
+    st.caption("Configure a candidate, compare it on the same labeled examples, then deploy it as a version with one click. Earlier versions remain available for rollback.")
 
     prefill = st.session_state.get("config_prefill", {})
     defaults = {**active_config, **prefill}
@@ -75,15 +90,40 @@ def render_configuration(config_store, active_config, mark_step_done, goto):
         defaults = {**active_config}
     if architecture == "agno" and defaults.get("provider") == "typesafe":
         defaults.update({"provider": "groq", "model": "openai/gpt-oss-120b", "temperature": 0.2})
+
+    experiments = ({key: value for key, value in QUICK_EXPERIMENTS.items()
+                    if key.startswith("jev_")} if architecture == "jev" else
+                   {key: value for key, value in QUICK_EXPERIMENTS.items()
+                    if key in ("cautious", "fast", "claude")})
+    st.markdown("**Guided starting points** — these prefill the candidate; they do not deploy until you choose a deploy button.")
+    exp_cols = st.columns(len(experiments))
+    for col, (key, exp) in zip(exp_cols, experiments.items()):
+        with col:
+            if st.button(exp["label"], help=exp["help"], key=f"exp_{key}"):
+                st.session_state["config_prefill"] = {**prefill, **exp["changes"]}
+                st.session_state["selected_agent_architecture"] = exp["changes"].get("architecture", architecture)
+                st.rerun()
+
     if architecture == "jev":
         st.info(
-            "Jev uses the direct Choice label (model jev-1.13.0); there is no score threshold. "
-            "On a fresh evaluation stopped at 961 of 3,000 reviews, Choice reached 9.2% recall "
-            "and 84.2% accuracy. This partial result is below the 20% recall / 85% accuracy "
-            "targets and is not a completed large-scale evaluation. Choice probabilities are "
-            "not calibrated for Yelp fraud. Every result goes to a human; this architecture "
-            "cannot auto-remove or auto-clear reviews."
+            "Jev is experimental and advisory. Its outputs are not calibrated probabilities; "
+            "every result stays in human review. Choice returns a label directly. Score and Noul "
+            "use a research threshold to map a 0–1 output to a label. Changing a threshold does "
+            "not change the human-review requirement. The tested model is pinned to jev-1.13.0. "
+            "On Streamlit Community Cloud, deployed config versions may reset when the app restarts."
         )
+        with st.expander("Measured reference results and how to use them"):
+            st.markdown(
+                "| Paired comparison | Method | Reviews | Recall | Accuracy |\n"
+                "|---|---|---:|---:|---:|\n"
+                "| Fresh interim holdout | Choice | 961 | 9.2% | 84.2% |\n"
+                "| Fresh interim holdout | Noul, overall risk at 0.50 | 961 | 4.2% | 85.7% |\n"
+                "| Development subset | Choice | 300 | 12.5% | 85.0% |\n"
+                "| Development subset | Score at 0.50 | 300 | 12.5% | 81.7% |\n\n"
+                "The two comparisons use different data partitions; compare methods only within a row pair. "
+                "No method has met the joint ≥20% recall / ≥85% accuracy target on a completed, untouched evaluation. "
+                "YelpZip's `filtered` label is a reference label, not verified fraud ground truth."
+            )
 
     st.divider()
     with st.form("deploy_form"):
@@ -91,8 +131,61 @@ def render_configuration(config_store, active_config, mark_step_done, goto):
             system_prompt = defaults["system_prompt"]
             provider, model, temperature = "typesafe", "jev-1.13.0", 0.0
             confidence_threshold = float(defaults["confidence_threshold"])
-            st.caption("Jev Choice returns a direct label. Confidence thresholds do not control Jev routing; all Jev results require human review.")
+            jev_method = st.selectbox(
+                "Decision method",
+                ["choice", "score", "noul"],
+                index=["choice", "score", "noul"].index(defaults.get("jev_method", "choice")),
+                format_func=lambda value: {"choice": "Choice · direct label",
+                                           "score": "Score · ordinal 0–1",
+                                           "noul": "Noul · model estimate 0–1"}[value],
+                help="Compare methods on the same examples before deploying. These primitive comparisons are exploratory, not proof of a general performance winner.",
+            )
+            method_help = {
+                "choice": "Jev selects Filtered or Recommended. Keep the label meanings fixed; edit the instructions that guide the decision.",
+                "score": "Jev returns an ordinal score from the genuine-evidence to filtered-evidence rubric. The cutoff below is an experimental decision rule, not calibrated confidence.",
+                "noul": "Jev returns a model-estimated value for the question below. It is not a calibrated fraud probability; the cutoff is an experimental decision rule.",
+            }
+            st.caption(method_help[jev_method])
+            st.caption("Model: `jev-1.13.0` (pinned for reproducibility). The current Jev client does not expose a temperature control.")
+            prompts = {**DEFAULT_JEV_PROMPTS, **defaults.get("jev_prompts", {})}
+            jev_prompts = dict(prompts)
+            jev_prompts[jev_method] = st.text_area(
+                "Decision instructions",
+                value=prompts[jev_method],
+                height=130,
+                help="Tell Jev what evidence to weigh and how to treat missing or conflicting evidence. Change one idea at a time, compare on fixed examples, and avoid instructions that imply unsupported certainty.",
+                key=f"jev_prompt_{active_config.get('version', 'v0')}_{jev_method}",
+            )
+            if jev_method == "choice":
+                jev_threshold = float(defaults.get("jev_threshold", 0.5))
+                st.caption("Choice has no cutoff. Jev's probabilities are shown as model output only and are not calibrated for Yelp fraud.")
+            else:
+                jev_threshold = st.slider(
+                    "Research cutoff",
+                    min_value=0.0, max_value=1.0,
+                    value=float(defaults.get("jev_threshold", 0.5)), step=0.01,
+                    help="Values at or above this cutoff map to Filtered. This changes the label mapping only; human review remains mandatory.",
+                )
+
+            st.markdown("**Evidence Jev receives**")
+            st.caption("Unselected evidence is omitted from the model request. Missing evidence is treated as unknown; this is useful for controlled ablation, but can reduce signal.")
+            configured_sources = set(defaults.get("jev_evidence_sources", DEFAULT_JEV_EVIDENCE_SOURCES))
+            source_columns = st.columns(2)
+            jev_evidence_sources = []
+            for index, (source, label) in enumerate(JEV_EVIDENCE_LABELS.items()):
+                with source_columns[index % 2]:
+                    if st.checkbox(
+                        label, value=source in configured_sources,
+                        key=f"jev_source_{active_config.get('version', 'v0')}_{source}",
+                    ):
+                        jev_evidence_sources.append(source)
+            if not jev_evidence_sources:
+                st.warning("Select at least one evidence source before evaluating or deploying.")
         else:
+            jev_method = defaults.get("jev_method", "choice")
+            jev_threshold = float(defaults.get("jev_threshold", 0.5))
+            jev_prompts = {**DEFAULT_JEV_PROMPTS, **defaults.get("jev_prompts", {})}
+            jev_evidence_sources = list(defaults.get("jev_evidence_sources", DEFAULT_JEV_EVIDENCE_SOURCES))
             system_prompt = st.text_area("System prompt", value=defaults["system_prompt"], height=220)
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -118,12 +211,21 @@ def render_configuration(config_store, active_config, mark_step_done, goto):
         evaluate_candidate = st.form_submit_button("🔬 Evaluate candidate")
         deploy_now = st.form_submit_button("🚀 Deploy new version", type="primary")
 
+    if (deploy_now or evaluate_candidate) and architecture == "jev" and not jev_evidence_sources:
+        st.error("Select at least one evidence source before evaluating or deploying.")
+        st.stop()
+    if (deploy_now or evaluate_candidate) and architecture == "jev" and not jev_prompts.get(jev_method, "").strip():
+        st.error("Add decision instructions before evaluating or deploying.")
+        st.stop()
+
     if deploy_now:
         direct_candidate = {
             "system_prompt": system_prompt, "temperature": temperature,
             "provider": provider, "model": model,
             "confidence_threshold": confidence_threshold,
             "architecture": architecture, "reason": reason,
+            "jev_method": jev_method, "jev_threshold": jev_threshold,
+            "jev_prompts": jev_prompts, "jev_evidence_sources": jev_evidence_sources,
         }
         new_version = _deploy(config_store, direct_candidate)
         st.session_state["selected_agent_architecture"] = architecture
@@ -140,6 +242,8 @@ def render_configuration(config_store, active_config, mark_step_done, goto):
             "provider": provider, "model": model,
             "confidence_threshold": confidence_threshold,
             "architecture": architecture, "version": "candidate", "reason": reason,
+            "jev_method": jev_method, "jev_threshold": jev_threshold,
+            "jev_prompts": jev_prompts, "jev_evidence_sources": jev_evidence_sources,
         }
         st.session_state.pop("candidate_evaluation", None)
 
@@ -149,6 +253,8 @@ def render_configuration(config_store, active_config, mark_step_done, goto):
         st.subheader("Candidate evaluation")
         st.caption("The candidate and active version run on the same fixed Yelp-labeled examples. "
                    "Each review makes one live agent investigation per version, so this uses API calls.")
+        st.info("This small golden set is useful for a quick directional comparison, not final validation. "
+                "Use a new untouched evaluation set before making broader performance claims.")
         golden_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "golden_set.csv")
         golden_reviews = load_evaluation_reviews(golden_path)
         sample_sizes = sorted({4, 8, 16, 32, len(golden_reviews)})
@@ -217,7 +323,14 @@ def render_configuration(config_store, active_config, mark_step_done, goto):
     history = pd.DataFrame([
         {"version": version["version"], "architecture": version.get("architecture", "agno"),
          "provider": version["provider"], "model": version["model"],
-         "temperature": version["temperature"], "threshold": version["confidence_threshold"],
+         "decision method": version.get("jev_method", "choice") if version.get("architecture") == "jev" else "Agno",
+         "cutoff": ("—" if version.get("jev_method", "choice") == "choice" else version.get("jev_threshold"))
+                   if version.get("architecture") == "jev" else version["confidence_threshold"],
+         "Jev evidence": ", ".join(JEV_EVIDENCE_LABELS.get(source, source)
+                                    for source in version.get("jev_evidence_sources", []))
+                         if version.get("architecture") == "jev" else "—",
+         "Jev prompt": version.get("jev_prompts", {}).get(version.get("jev_method", "choice"), "")[:90]
+                      if version.get("architecture") == "jev" else "—",
          "reason": version["reason"], "deployed_at": version["deployed_at"]}
         for version in reversed(versions)
     ])

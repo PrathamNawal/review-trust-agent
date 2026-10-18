@@ -174,7 +174,9 @@ st.sidebar.markdown(
     f"({active_config.get('architecture', 'agno')} · {active_config['provider']}/{active_config['model']})"
 )
 if active_config.get("architecture") == "jev":
-    st.sidebar.caption("Decision method: **Jev Choice · experimental** · human review required")
+    st.sidebar.caption(
+        f"Decision method: **Jev {active_config.get('jev_method', 'choice').title()} · experimental** · human review required"
+    )
 
 render_progress(NAV_OPTIONS.index(page))
 

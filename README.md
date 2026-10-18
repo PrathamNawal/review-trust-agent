@@ -105,8 +105,11 @@ matrices, confidence intervals, development runs, cost estimates, and limitation
 - **Human Review**, **System Config**, and **Performance Tracking** work without an API
   key.
 - **Agent Review** uses experimental Jev Choice by default and requires a TypeSafe API
-  key. Enter it for the current session or configure it in Streamlit secrets. Agno is
-  also available with Groq, OpenRouter, Gemini, or Claude credentials.
+  key. In **Play — Tweak the Agent**, configure Jev Choice, Score, or Noul, edit
+  method-specific instructions, select evidence sources, compare a candidate, and deploy
+  it as a version. Score/Noul cutoffs only map model outputs to labels; all Jev results
+  stay in human review. Agno is also available with Groq, OpenRouter, Gemini, or Claude
+  credentials.
 - Keys entered in the sidebar are session-only and are not written to project files.
 - The app runs on Streamlit Community Cloud's free tier. Session judgments and deployed
   config versions may reset when the app restarts.

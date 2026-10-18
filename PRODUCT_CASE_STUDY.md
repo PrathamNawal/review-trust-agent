@@ -220,8 +220,10 @@ as a guided six-step flow:
    evidence the task is genuinely hard, not that the labeler was careless.
 3. **Try it — Agent** — the real agent investigates live (any of 4 providers), full
    tool-call trace visible, on the same item a visitor just judged as a human.
-4. **Play** — edit the system prompt, temperature, provider, or threshold and deploy a
-   new version with one click; quick-experiment presets pre-fill common changes.
+4. **Play** — configure Agno prompts, provider, temperature, and routing threshold, or
+   configure Jev Choice/Score/Noul instructions, evidence sources, and Score/Noul research
+   cutoff. Compare a candidate on the same labeled examples, deploy a version, and roll
+   back. Jev's model is pinned and its decisions always require human review.
 5. **Track Performance** — every judgment, human or agent, logged to MLflow and grouped
    by config version, with Wilson-score confidence intervals (appropriate at the small-n
    a live dashboard session actually produces) and a plain-language before/after delta.
@@ -246,7 +248,8 @@ Agno dashboard system. The holdout is consumed; future candidates need a new unt
 test set. The study did not directly compare Jev with the Agno implementation. Full results
 and limitations: [Jev execution report](experiments/jev-recall-experiment-report.md).
 
-**Current dashboard method:** Jev Choice is active as an experimental advisory method.
+**Current dashboard default:** Jev Choice is active as an experimental advisory method;
+the PM dashboard can also configure Jev Score or Noul and select evidence sources.
 On a separate fresh holdout evaluation stopped at 961/3,000 reviews, Choice reached 9.2%
 recall and 84.2% accuracy, compared with direct overall-risk Noul at 4.2% and 85.7%.
 The partial result favors Choice on recall but does not meet either joint target. Choice

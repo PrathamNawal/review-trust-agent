@@ -27,8 +27,12 @@ def investigate_and_log(review, config, true_filtered, tracker=None):
                 extra_tags["confidence_calibrated"] = str(bool(event["confidence_calibrated"])).lower()
             if event.get("jev_threshold") is not None:
                 extra_tags["decision_threshold"] = str(event["jev_threshold"])
-            if event.get("jev_decision_score") is not None:
-                extra_tags["decision_score"] = str(event["jev_decision_score"])
+            if event.get("jev_method") is not None:
+                extra_tags["jev_method"] = str(event["jev_method"])
+            if event.get("jev_decision_value") is not None:
+                extra_tags["jev_decision_value"] = str(event["jev_decision_value"])
+            if event.get("jev_choice_probabilities"):
+                extra_tags["jev_choice_probabilities"] = str(event["jev_choice_probabilities"])
             tracker.log_judgment(
                 judge_type="agent",
                 config_version=config["version"],
@@ -42,7 +46,7 @@ def investigate_and_log(review, config, true_filtered, tracker=None):
                 n_tool_calls=n_tool_calls,
                 provider=config.get("provider"),
                 model=config.get("model"),
-                temperature=config.get("temperature"),
+                temperature=None if config.get("architecture") == "jev" else config.get("temperature"),
                 extra_tags=extra_tags,
             )
         yield event

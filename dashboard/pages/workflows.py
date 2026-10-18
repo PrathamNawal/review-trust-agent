@@ -74,15 +74,16 @@ def render_analyst_queue(sample, toolbox, active_config, mlflow_tracking, judged
             threshold = active_config["confidence_threshold"]
             routing = compute_routing(predicted_filtered, confidence, threshold)
             is_jev = active_config.get("architecture") == "jev"
+            jev_method = active_config.get("jev_method", "choice").title()
             confidence_display = (
-                "Jev Choice · experimental" if is_jev else
+                f"Jev {jev_method} · experimental" if is_jev else
                 (f"{confidence:.0%} confidence" if confidence is not None else "confidence not calibrated")
             )
 
             verdict_col, routing_col = st.columns(2)
             with verdict_col:
                 st.metric(
-                    "Agent's verdict · Jev Choice (experimental)" if is_jev else "Agent's verdict",
+                    f"Agent's verdict · Jev {jev_method} (experimental)" if is_jev else "Agent's verdict",
                     "Likely fake" if predicted_filtered else "Likely genuine",
                     None if is_jev else confidence_display,
                 )

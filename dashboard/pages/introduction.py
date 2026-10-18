@@ -35,12 +35,12 @@ def render_overview(goto):
 
 
 def render_how_it_works(goto):
-    st.markdown('<div class="rta-page-eyebrow">THE REVIEW FLOW · EXPERIMENTAL CHOICE</div>',
+    st.markdown('<div class="rta-page-eyebrow">THE REVIEW FLOW · EXPERIMENTAL JEV</div>',
                 unsafe_allow_html=True)
     st.title("How it works")
     st.markdown(
-        "A review is paired with behavioral evidence, then Jev Choice returns an advisory label. "
-        "A human makes the final call."
+        "A review is paired with selected behavioral evidence, then the configured Jev method "
+        "returns an advisory label. A human makes the final call."
     )
     st.markdown("### Four steps, one human decision")
     flow = st.columns(4, gap="medium")
@@ -53,12 +53,12 @@ def render_how_it_works(goto):
         "The app prepares reviewer history, business activity, and text similarity using earlier reviews.",
     )
     render_process_step(
-        flow[2], "03 · Jev Choice", "Return a label",
-        "Jev selects <b>Filtered</b> or <b>Recommended</b> from the review and evidence bundle.",
+        flow[2], "03 · Jev method", "Return a label",
+        "The PM can configure Choice, Score, or Noul and compare the method before deployment.",
     )
     render_process_step(
         flow[3], "04 · Human", "Review the result",
-        "Every Jev label is advisory. A person reviews it; the app takes no automatic moderation action.",
+        "Every Jev output is advisory. A person reviews it; the app takes no automatic moderation action.",
     )
 
     st.markdown("### Evidence shown to Jev")
@@ -94,6 +94,7 @@ def render_how_it_works(goto):
     with st.expander("Evidence and evaluation details"):
         st.markdown(
             "Evidence is restricted to reviews dated before the case under investigation. "
+            "The PM can omit evidence sources for controlled ablation experiments. "
             "The public dashboard uses a trimmed YelpZip index. The fresh paired comparison "
             "tested Choice alongside two Noul policies; see the "
             "[full experiment report](../experiments/jev-recall-experiment-report.md)."

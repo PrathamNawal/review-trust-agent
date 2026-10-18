@@ -20,6 +20,20 @@ DEFAULT_DECISION_INSTRUCTIONS = (
     "Do not infer from any dataset labels or identifiers."
 )
 
+DEFAULT_SCORE_INSTRUCTIONS = (
+    "Score how strongly the supplied behavioral evidence supports filtering this review. "
+    "Use the evidence, not writing style, rating, or sentiment alone. Treat missing evidence "
+    "as unknown. Do not infer from dataset labels or identifiers."
+)
+
+DEFAULT_NOUL_INSTRUCTIONS = (
+    "Estimate whether Yelp would filter this review based on the supplied behavioral evidence. "
+    "Treat the value as a model estimate, not a calibrated fraud probability. Treat missing "
+    "evidence as unknown. Do not infer from dataset labels or identifiers."
+)
+
+DECISION_METHODS = ("choice", "score", "noul")
+
 
 DECOMPOSED_QUESTIONS = {
     "overall_risk": {
@@ -90,8 +104,8 @@ def _post_system_one(state, questions, api_key, model, timeout):
 
 
 def classify_review(review, evidence, api_key=None, model="jev-latest", timeout=60,
-                    instructions=None):
-    """Return a typed binary decision and usage metadata; never log credentials."""
+                    instructions=None, method="choice", threshold=0.5):
+    """Return a configured Jev decision and usage metadata; never log credentials."""
     api_key = api_key or os.environ.get("TYPESAFE_API_KEY")
     if not api_key:
         raise JevAPIError("TYPESAFE_API_KEY is not configured.")
@@ -99,8 +113,13 @@ def classify_review(review, evidence, api_key=None, model="jev-latest", timeout=
         "review": {k: review.get(k) for k in ("rating", "date", "review_text")},
         "evidence": evidence,
     }
-    questions = {
-        "review_disposition": {
+    if method not in DECISION_METHODS:
+        raise ValueError(f"Unsupported Jev decision method: {method}")
+    if not 0 <= float(threshold) <= 1:
+        raise ValueError("Jev decision threshold must be between 0 and 1.")
+
+    if method == "choice":
+        question = {
             "type": "choice",
             "instructions": instructions or DEFAULT_DECISION_INSTRUCTIONS,
             "criteria": {
@@ -108,24 +127,47 @@ def classify_review(review, evidence, api_key=None, model="jev-latest", timeout=
                 "recommended": "Evidence supports that this review would be recommended as likely genuine.",
             },
         }
-    }
+    elif method == "score":
+        question = {
+            "type": "score",
+            "instructions": instructions or DEFAULT_SCORE_INSTRUCTIONS,
+            "criteria": [
+                "The evidence supports recommending this review as likely genuine.",
+                "The evidence supports filtering this review as potentially fake or manipulated.",
+            ],
+        }
+    else:
+        question = {
+            "type": "noul",
+            "instructions": instructions or DEFAULT_NOUL_INSTRUCTIONS,
+        }
+    questions = {"review_disposition": question}
     body, elapsed_ms = _post_system_one(state, questions, api_key, model, timeout)
     answer = body.get("answers", {}).get("review_disposition", {})
-    choice = answer.get("choice")
-    if answer.get("type") != "choice" or choice not in ("filtered", "recommended"):
-        raise JevAPIError("Jev returned an unexpected decision response.")
-    probabilities = answer.get("probabilities", {})
-    confidence = answer.get("confidence")
-    if not isinstance(confidence, (int, float)) or not 0 <= confidence <= 1:
-        confidence = probabilities.get(choice)
-    if not isinstance(confidence, (int, float)) or not 0 <= confidence <= 1:
-        confidence = 0.0
+    probabilities = {}
+    if method == "choice":
+        choice = answer.get("choice")
+        if answer.get("type") != "choice" or choice not in ("filtered", "recommended"):
+            raise JevAPIError("Jev returned an unexpected Choice response.")
+        predicted_filtered = choice == "filtered"
+        probabilities = answer.get("probabilities", {})
+        decision_value = probabilities.get(choice)
+    else:
+        value_key = "score" if method == "score" else "noul"
+        decision_value = answer.get(value_key)
+        if (answer.get("type") != method or not isinstance(decision_value, (int, float))
+                or not 0 <= decision_value <= 1):
+            raise JevAPIError(f"Jev returned an unexpected {method.title()} response.")
+        predicted_filtered = float(decision_value) >= float(threshold)
+        probabilities = answer.get("probabilities", {})
     usage = body.get("usage", {})
     return {
-        "predicted_filtered": choice == "filtered",
-        "confidence": float(confidence),
-        "choice_probabilities": probabilities,
-        "probability_filtered": probabilities.get("filtered"),
+        "predicted_filtered": predicted_filtered,
+        "confidence": None,
+        "choice_probabilities": probabilities if method == "choice" else {},
+        "decision_method": method,
+        "decision_value": float(decision_value) if isinstance(decision_value, (int, float)) else None,
+        "decision_threshold": float(threshold) if method != "choice" else None,
         "model": body.get("model", model),
         "input_tokens": usage.get("input_tokens"),
         "output_tokens": usage.get("output_tokens"),
