@@ -102,6 +102,8 @@ def render_configuration(config_store, active_config, mark_step_done, goto):
             if st.button(exp["label"], help=exp["help"], key=f"exp_{key}"):
                 st.session_state["config_prefill"] = {**prefill, **exp["changes"]}
                 st.session_state["selected_agent_architecture"] = exp["changes"].get("architecture", architecture)
+                if "jev_method" in exp["changes"]:
+                    st.session_state["jev_config_generation"] = st.session_state.get("jev_config_generation", 0) + 1
                 st.rerun()
 
     if architecture == "jev":
@@ -125,27 +127,34 @@ def render_configuration(config_store, active_config, mark_step_done, goto):
                 "YelpZip's `filtered` label is a reference label, not verified fraud ground truth."
             )
 
+    # Keep this selector outside the form: Streamlit forms do not rerun when a
+    # widget changes, so method-specific controls would otherwise stay stale
+    # until the user submits Evaluate or Deploy.
+    if architecture == "jev":
+        method_options = ["choice", "score", "noul"]
+        jev_method = st.selectbox(
+            "Decision method",
+            method_options,
+            index=method_options.index(defaults.get("jev_method", "choice")),
+            format_func=lambda value: {"choice": "Choice · direct label",
+                                       "score": "Score · ordinal 0–1",
+                                       "noul": "Noul · model estimate 0–1"}[value],
+            key=f"selected_jev_method_{st.session_state.get('jev_config_generation', 0)}",
+            help="Compare methods on the same examples before deploying. These primitive comparisons are exploratory, not proof of a general performance winner.",
+        )
+        method_help = {
+            "choice": "Jev selects Filtered or Recommended. Keep the label meanings fixed; edit the instructions that guide the decision.",
+            "score": "Jev returns an ordinal score from the genuine-evidence to filtered-evidence rubric. The cutoff below is an experimental decision rule, not calibrated confidence.",
+            "noul": "Jev returns a model-estimated value for the question below. It is not a calibrated fraud probability; the cutoff is an experimental decision rule.",
+        }
+        st.caption(method_help[jev_method])
+
     st.divider()
     with st.form("deploy_form"):
         if architecture == "jev":
             system_prompt = defaults["system_prompt"]
             provider, model, temperature = "typesafe", "jev-1.13.0", 0.0
             confidence_threshold = float(defaults["confidence_threshold"])
-            jev_method = st.selectbox(
-                "Decision method",
-                ["choice", "score", "noul"],
-                index=["choice", "score", "noul"].index(defaults.get("jev_method", "choice")),
-                format_func=lambda value: {"choice": "Choice · direct label",
-                                           "score": "Score · ordinal 0–1",
-                                           "noul": "Noul · model estimate 0–1"}[value],
-                help="Compare methods on the same examples before deploying. These primitive comparisons are exploratory, not proof of a general performance winner.",
-            )
-            method_help = {
-                "choice": "Jev selects Filtered or Recommended. Keep the label meanings fixed; edit the instructions that guide the decision.",
-                "score": "Jev returns an ordinal score from the genuine-evidence to filtered-evidence rubric. The cutoff below is an experimental decision rule, not calibrated confidence.",
-                "noul": "Jev returns a model-estimated value for the question below. It is not a calibrated fraud probability; the cutoff is an experimental decision rule.",
-            }
-            st.caption(method_help[jev_method])
             st.caption("Model: `jev-1.13.0` (pinned for reproducibility). The current Jev client does not expose a temperature control.")
             prompts = {**DEFAULT_JEV_PROMPTS, **defaults.get("jev_prompts", {})}
             jev_prompts = dict(prompts)
