@@ -1,3 +1,10 @@
 [client]
 toolbarMode = "minimal"
 showSidebarNavigation = false
+
+[theme]
+primaryColor = "#C65346"
+backgroundColor = "#F7F8FA"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#202733"
+font = "sans serif"

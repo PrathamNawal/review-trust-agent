@@ -2,7 +2,7 @@
 
 import streamlit as st
 
-from dashboard.ui_components import render_hero_stat
+from dashboard.ui_components import render_hero_stat, render_process_step
 
 
 def render_overview(goto):
@@ -55,56 +55,69 @@ def render_overview(goto):
 
 
 def render_how_it_works(goto):
+    st.markdown('<div class="rta-page-eyebrow">THE REVIEW FLOW · EXPERIMENTAL CHOICE</div>',
+                unsafe_allow_html=True)
     st.title("How it works")
     st.markdown(
-        "Before the agent judges anything, it gathers real evidence — the same evidence a human "
-        "trust & safety analyst would pull. Every number below comes from the actual 608K-review "
-        "Yelp dataset, not a simulation."
+        "A review is paired with behavioral evidence, then Jev Choice returns an advisory label. "
+        "A human makes the final call."
     )
-    st.markdown("#### The investigation loop")
-    st.markdown("""
-```
-  Review comes in
-        │
-        ▼
-  Agent picks a tool ──────► Reviewer history · Business trend · Text similarity
-        │                     (it can call these zero or more times, in any order,
-        │                      and re-check evidence if it's still unsure)
-        ▼
-  Enough evidence?  ──No──►  gather more
-        │ Yes
-        ▼
-  Jev Choice: filtered or recommended + evidence trail
-        │
-        ▼
-  Jev Choice result ─────────────────────► 🟡 human review required
-```
-""")
+    st.markdown("### Four steps, one human decision")
+    flow = st.columns(4, gap="medium")
+    render_process_step(
+        flow[0], "01 · Review", "Read the case",
+        "The review text, rating, and date define the case being assessed.",
+    )
+    render_process_step(
+        flow[1], "02 · Evidence", "Build context",
+        "The app prepares reviewer history, business activity, and text similarity using earlier reviews.",
+    )
+    render_process_step(
+        flow[2], "03 · Jev Choice", "Return a label",
+        "Jev selects <b>Filtered</b> or <b>Recommended</b> from the review and evidence bundle.",
+    )
+    render_process_step(
+        flow[3], "04 · Human", "Review the result",
+        "Every Jev label is advisory. A person reviews it; the app takes no automatic moderation action.",
+    )
+
+    st.markdown("### Evidence shown to Jev")
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.markdown("**🕵️ Reviewer history**")
-        st.caption(
-            "Does this reviewer's posting pattern look normal? Checks review count, rating "
-            "spread, and the most reviews they've ever posted in one 7-day window. A reviewer "
-            "with only *this one* review is itself a known spam signal."
-        )
+        with st.container(border=True):
+            st.markdown("#### 🕵️ Reviewer activity")
+            st.write("Posting volume, timing gaps, rating spread, and activity bursts across earlier reviews.")
+            st.markdown('<div class="rta-evidence-meta">Signal source · reviewer history</div>',
+                        unsafe_allow_html=True)
     with col2:
-        st.markdown("**📈 Business trend**")
-        st.caption(
-            "Was there a review *spike* at this business around this date? Compares the "
-            "review rate in a ±14-day window to the business's all-time average. A burst 3-5x "
-            "above normal is the classic signature of a paid campaign."
-        )
+        with st.container(border=True):
+            st.markdown("#### 📈 Business activity")
+            st.write("Review volume near the case date compared with that business's earlier baseline.")
+            st.markdown('<div class="rta-evidence-meta">Signal source · business trend</div>',
+                        unsafe_allow_html=True)
     with col3:
-        st.markdown("**🔎 Text similarity**")
-        st.caption(
-            "Does the wording look templated or copy-pasted? Compares this review's text against "
-            "up to 300 others by the same reviewer or business, using character-level pattern "
-            "matching (so it still catches lightly-reworded templates)."
+        with st.container(border=True):
+            st.markdown("#### 🔎 Reused wording")
+            st.write("Text similarity against earlier reviews by the same reviewer and for the same business.")
+            st.markdown('<div class="rta-evidence-meta">Signal source · text similarity</div>',
+                        unsafe_allow_html=True)
+
+    st.markdown(
+        '<div class="rta-method-note"><b>How to read the result:</b> Choice is an experimental '
+        'binary decision, not a calibrated fraud probability. On a fresh evaluation stopped at '
+        '<b>961 of 3,000</b> reviews, it reached <b>9.2% recall</b> and <b>84.2% accuracy</b>. '
+        'The sample was incomplete and the target (≥20% recall, ≥85% accuracy) was not met. '
+        'YelpZip labels are reference labels, not verified fraud ground truth.</div>',
+        unsafe_allow_html=True,
+    )
+
+    with st.expander("Evidence and evaluation details"):
+        st.markdown(
+            "Evidence is restricted to reviews dated before the case under investigation. "
+            "The public dashboard uses a trimmed YelpZip index. The fresh paired comparison "
+            "tested Choice alongside two Noul policies; see the "
+            "[full experiment report](../experiments/jev-recall-experiment-report.md)."
         )
-    st.divider()
-    st.caption("Full technical reference: reviewer_history_lookup, business_trend_lookup, and "
-               "text_similarity_check are implemented in scripts/tools.py.")
 
     if st.button("Try it yourself →", type="primary"):
         goto("3. Try it — Human")

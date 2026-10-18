@@ -35,6 +35,38 @@ _CSS = """
     font-size: 0.85rem; font-style: italic; color: var(--rta-hero-muted, #6b7280);
     border-left: 2px solid #d1d5db; padding-left: 8px; margin: 4px 0;
 }
+[data-testid="stAppViewContainer"] { background: #f7f8fa; }
+[data-testid="stSidebar"] { background: #f1f3f6; border-right: 1px solid #e5e7eb; }
+[data-testid="stMarkdownContainer"] p { line-height: 1.58; }
+[data-testid="stVerticalBlockBorderWrapper"] > div {
+    border-color: #e4e7ec !important; border-radius: 14px !important;
+    background: #fff;
+}
+[data-testid="stMetric"] {
+    padding: 12px 14px; border-radius: 12px;
+    background: #fff; border: 1px solid #e4e7ec;
+}
+[data-testid="stButton"] > button { border-radius: 10px; min-height: 2.7rem; }
+.rta-page-eyebrow {
+    color: #667085; text-transform: uppercase; letter-spacing: .09em;
+    font-size: .72rem; font-weight: 700; margin: .25rem 0 .45rem;
+}
+.rta-process-card {
+    height: 100%; min-height: 184px; padding: 19px 18px;
+    border: 1px solid #e4e7ec; border-radius: 14px; background: #fff;
+    box-shadow: 0 2px 8px rgba(16, 24, 40, .035);
+}
+.rta-process-step {
+    color: #b5473c; text-transform: uppercase; letter-spacing: .08em;
+    font-size: .7rem; font-weight: 750; margin-bottom: 13px;
+}
+.rta-process-title { color: #202733; font-size: 1.02rem; font-weight: 700; margin-bottom: 8px; }
+.rta-process-body { color: #475467; font-size: .88rem; line-height: 1.55; }
+.rta-method-note {
+    padding: 15px 18px; border-left: 4px solid #c85b4b; border-radius: 8px;
+    background: #fff5f2; color: #663b35; line-height: 1.55;
+}
+.rta-evidence-meta { color: #667085; font-size: .78rem; margin-top: 10px; }
 </style>
 """
 
@@ -54,6 +86,18 @@ def render_hero_stat(container, label, value, caption, tone="neutral"):
         f'<div class="rta-hero-stat-label">{label}</div>'
         f'<div class="rta-hero-stat-value" style="color:{color}">{value}</div>'
         f'<div class="rta-hero-stat-caption">{caption}</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_process_step(container, step, title, body):
+    """Render one stage in a short, scannable investigation flow."""
+    container.markdown(
+        f'<div class="rta-process-card">'
+        f'<div class="rta-process-step">{step}</div>'
+        f'<div class="rta-process-title">{title}</div>'
+        f'<div class="rta-process-body">{body}</div>'
         f'</div>',
         unsafe_allow_html=True,
     )
