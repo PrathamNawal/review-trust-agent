@@ -173,6 +173,8 @@ st.sidebar.markdown(
     f"Active config: **{active_config['version']}** "
     f"({active_config.get('architecture', 'agno')} · {active_config['provider']}/{active_config['model']})"
 )
+if active_config.get("architecture") == "jev":
+    st.sidebar.caption("Decision method: **Jev Choice · experimental** · human review required")
 
 render_progress(NAV_OPTIONS.index(page))
 
