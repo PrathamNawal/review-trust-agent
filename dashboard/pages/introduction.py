@@ -22,16 +22,17 @@ def render_overview(goto):
                      "16-review golden-set benchmark, blind labeling — matches published literature (50-65%).")
     render_hero_stat(c2, "Original agent accuracy", "84%",
                      "50-review project batch; see the original recall result below.", tone="warning")
-    render_hero_stat(c3, "Best Jev recall", "7.8%",
-                     "31/397 filtered reviews found on a separate, locked 3,000-review holdout.",
+    render_hero_stat(c3, "Choice recall · interim", "9.2%",
+                     "11/119 filtered labels found in 961 completed cases from a fresh 3,000-review holdout.",
                      tone="warning")
 
     st.info(
-        "These are results from different evaluations: 0% was the original dashboard agent's "
-        "50-review batch; 7.8% is the best Jev result on a separate 3,000-review holdout. "
-        "The reported Jev benchmark was a standalone experiment; Jev is now the default experimental dashboard architecture. "
-        "It improved recall over Jev v1 (4.8%) but reached 83.2% accuracy, below the 85% target. "
-        "The Jev holdout is consumed; neither result supports automatic removal."
+        "These are results from different evaluations. The original dashboard agent had 0% "
+        "recall on six positives in its 50-review batch. The completed 3,000-review Jev "
+        "comparison found 7.8% recall / 83.2% accuracy for the decomposed Noul policy. The "
+        "current Choice method reached 9.2% recall / 84.2% accuracy on a separate fresh "
+        "evaluation stopped at 961 of 3,000 reviews. That partial result is below the 20% / "
+        "85% targets; Choice is experimental and every decision goes to a human."
     )
     st.caption(
         "Not sure where to start? Use the **\"I am a...\"** picker in the sidebar to jump "
@@ -45,7 +46,7 @@ def render_overview(goto):
 3. **Try it as the agent** — watch it investigate live, tool call by tool call
 4. **Work the Analyst Queue** — review the agent's already-investigated cases: accept, override, or escalate
 5. **Check a review's status** — as the reviewer/business, see why a decision was made and appeal it
-6. **Play** — edit Agno settings or choose the experimental Jev workflow and deploy a version
+6. **Play** — review the experimental Jev Choice method, switch to Agno, or compare settings
 7. **Track performance** — see exactly how your changes moved accuracy, precision, and recall
 """)
 
@@ -73,12 +74,10 @@ def render_how_it_works(goto):
   Enough evidence?  ──No──►  gather more
         │ Yes
         ▼
-  Judgment: fake or genuine? + confidence + reasoning
+  Jev Choice: filtered or recommended + evidence trail
         │
         ▼
-  Routing ──► high confidence, fake      → 🔴 auto-remove
-         ├──► high confidence, genuine   → 🟢 ignore
-         └──► low confidence (either way) → 🟡 queue for a human
+  Jev Choice result ─────────────────────► 🟡 human review required
 ```
 """)
     col1, col2, col3 = st.columns(3)

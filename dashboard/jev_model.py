@@ -65,30 +65,8 @@ DECOMPOSED_QUESTIONS = {
 }
 
 
-def classify_review(review, evidence, api_key=None, model="jev-latest", timeout=60,
-                    instructions=None):
-    """Return a typed binary decision and usage metadata; never log credentials."""
-    api_key = api_key or os.environ.get("TYPESAFE_API_KEY")
-    if not api_key:
-        raise JevAPIError("TYPESAFE_API_KEY is not configured.")
-    state = {
-        "review": {k: review.get(k) for k in ("rating", "date", "review_text")},
-        "evidence": evidence,
-    }
-    payload = {
-        "model": model,
-        "state": state,
-        "questions": {
-            "review_disposition": {
-                "type": "choice",
-                "instructions": instructions or DEFAULT_DECISION_INSTRUCTIONS,
-                "criteria": {
-                    "filtered": "Evidence supports that this review would be filtered as potentially fake or manipulated.",
-                    "recommended": "Evidence supports that this review would be recommended as likely genuine.",
-                },
-            }
-        },
-    }
+def _post_system_one(state, questions, api_key, model, timeout):
+    payload = {"model": model, "state": state, "questions": questions}
     request = Request(
         ENDPOINT,
         data=json.dumps(payload).encode("utf-8"),
@@ -100,18 +78,38 @@ def classify_review(review, evidence, api_key=None, model="jev-latest", timeout=
         try:
             with urlopen(request, timeout=timeout) as response:
                 body = json.loads(response.read().decode("utf-8"))
-            break
+            return body, round((time.monotonic() - started) * 1000)
         except HTTPError as exc:
             if exc.code in (429, 529) and attempt < 3:
                 time.sleep(min(2 ** attempt, 8))
                 continue
-            # Do not surface response body: it can contain request details.
             raise JevAPIError(f"Jev API returned HTTP {exc.code}.") from None
         except (URLError, TimeoutError, OSError) as exc:
             raise JevAPIError(f"Jev request failed ({type(exc).__name__}).") from None
-    else:
-        raise JevAPIError("Jev API remained rate limited after retries.")
+    raise JevAPIError("Jev API remained rate limited after retries.")
 
+
+def classify_review(review, evidence, api_key=None, model="jev-latest", timeout=60,
+                    instructions=None):
+    """Return a typed binary decision and usage metadata; never log credentials."""
+    api_key = api_key or os.environ.get("TYPESAFE_API_KEY")
+    if not api_key:
+        raise JevAPIError("TYPESAFE_API_KEY is not configured.")
+    state = {
+        "review": {k: review.get(k) for k in ("rating", "date", "review_text")},
+        "evidence": evidence,
+    }
+    questions = {
+        "review_disposition": {
+            "type": "choice",
+            "instructions": instructions or DEFAULT_DECISION_INSTRUCTIONS,
+            "criteria": {
+                "filtered": "Evidence supports that this review would be filtered as potentially fake or manipulated.",
+                "recommended": "Evidence supports that this review would be recommended as likely genuine.",
+            },
+        }
+    }
+    body, elapsed_ms = _post_system_one(state, questions, api_key, model, timeout)
     answer = body.get("answers", {}).get("review_disposition", {})
     choice = answer.get("choice")
     if answer.get("type") != "choice" or choice not in ("filtered", "recommended"):
@@ -126,12 +124,119 @@ def classify_review(review, evidence, api_key=None, model="jev-latest", timeout=
     return {
         "predicted_filtered": choice == "filtered",
         "confidence": float(confidence),
+        "choice_probabilities": probabilities,
         "probability_filtered": probabilities.get("filtered"),
         "model": body.get("model", model),
         "input_tokens": usage.get("input_tokens"),
         "output_tokens": usage.get("output_tokens"),
         "cost_usd": usage.get("cost_usd", usage.get("cost")),
-        "elapsed_ms": body.get("elapsedMs", round((time.monotonic() - started) * 1000)),
+        "elapsed_ms": body.get("elapsedMs", elapsed_ms),
+    }
+
+
+def compare_choice_and_score(review, evidence, api_key=None, model="jev-1.13.0", timeout=60):
+    """Ask Jev for a binary Choice and ordinal Score over the same review state."""
+    api_key = api_key or os.environ.get("TYPESAFE_API_KEY")
+    if not api_key:
+        raise JevAPIError("TYPESAFE_API_KEY is not configured.")
+    state = {
+        "review": {k: review.get(k) for k in ("rating", "date", "review_text")},
+        "evidence": evidence,
+    }
+    questions = {
+        "review_disposition": {
+            "type": "choice",
+            "instructions": DEFAULT_DECISION_INSTRUCTIONS,
+            "criteria": {
+                "filtered": "Evidence supports that this review would be filtered as potentially fake or manipulated.",
+                "recommended": "Evidence supports that this review would be recommended as likely genuine.",
+            },
+        },
+        "risk_score": {
+            "type": "score",
+            "instructions": (
+                "Score how strongly the supplied behavioral evidence supports filtering this review. "
+                "Use the rubric endpoints only; do not infer from sentiment or rating alone. "
+                "Treat missing evidence as unknown."
+            ),
+            "criteria": [
+                "The evidence supports recommending this review as likely genuine.",
+                "The evidence supports filtering this review as potentially fake or manipulated.",
+            ],
+        },
+    }
+    body, elapsed_ms = _post_system_one(state, questions, api_key, model, timeout)
+    answers = body.get("answers", {})
+    choice_answer = answers.get("review_disposition", {})
+    choice = choice_answer.get("choice")
+    if choice_answer.get("type") != "choice" or choice not in ("filtered", "recommended"):
+        raise JevAPIError("Jev returned an unexpected Choice response.")
+    score_answer = answers.get("risk_score", {})
+    score = score_answer.get("score")
+    if score_answer.get("type") != "score" or not isinstance(score, (int, float)) or not 0 <= score <= 1:
+        raise JevAPIError("Jev returned an unexpected Score response.")
+    usage = body.get("usage", {})
+    return {
+        "choice_filtered": choice == "filtered",
+        "choice_confidence": choice_answer.get("confidence"),
+        "choice_probabilities": choice_answer.get("probabilities", {}),
+        "score": float(score),
+        "score_probabilities": score_answer.get("probabilities", {}),
+        "score_confidence": score_answer.get("confidence"),
+        "model": body.get("model", model),
+        "input_tokens": usage.get("input_tokens"),
+        "output_tokens": usage.get("output_tokens"),
+        "cost_usd": usage.get("cost_usd", usage.get("cost")),
+        "elapsed_ms": body.get("elapsedMs", elapsed_ms),
+    }
+
+
+def compare_choice_and_noul(review, evidence, api_key=None, model="jev-1.13.0", timeout=60):
+    """Ask Choice plus direct-risk and business-burst Noul questions on one state."""
+    api_key = api_key or os.environ.get("TYPESAFE_API_KEY")
+    if not api_key:
+        raise JevAPIError("TYPESAFE_API_KEY is not configured.")
+    state = {
+        "review": {k: review.get(k) for k in ("rating", "date", "review_text")},
+        "evidence": evidence,
+    }
+    questions = {
+        "review_disposition": {
+            "type": "choice",
+            "instructions": DEFAULT_DECISION_INSTRUCTIONS,
+            "criteria": {
+                "filtered": "Evidence supports that this review would be filtered as potentially fake or manipulated.",
+                "recommended": "Evidence supports that this review would be recommended as likely genuine.",
+            },
+        },
+        "overall_risk": DECOMPOSED_QUESTIONS["overall_risk"],
+        "business_burst": DECOMPOSED_QUESTIONS["business_burst"],
+    }
+    body, elapsed_ms = _post_system_one(state, questions, api_key, model, timeout)
+    answers = body.get("answers", {})
+    choice_answer = answers.get("review_disposition", {})
+    choice = choice_answer.get("choice")
+    if choice_answer.get("type") != "choice" or choice not in ("filtered", "recommended"):
+        raise JevAPIError("Jev returned an unexpected Choice response.")
+    noul_values = {}
+    for question_id in ("overall_risk", "business_burst"):
+        answer = answers.get(question_id, {})
+        value = answer.get("noul") if answer.get("type") == "noul" else None
+        if not isinstance(value, (int, float)) or not 0 <= value <= 1:
+            raise JevAPIError(f"Jev returned an unexpected {question_id} response.")
+        noul_values[question_id] = float(value)
+    usage = body.get("usage", {})
+    return {
+        "choice_filtered": choice == "filtered",
+        "choice_confidence": choice_answer.get("confidence"),
+        "choice_probabilities": choice_answer.get("probabilities", {}),
+        "noul_overall_risk": noul_values["overall_risk"],
+        "noul_business_burst": noul_values["business_burst"],
+        "model": body.get("model", model),
+        "input_tokens": usage.get("input_tokens"),
+        "output_tokens": usage.get("output_tokens"),
+        "cost_usd": usage.get("cost_usd", usage.get("cost")),
+        "elapsed_ms": body.get("elapsedMs", elapsed_ms),
     }
 
 

@@ -11,12 +11,12 @@ from dashboard.live_agent import PROVIDER_PRESETS
 
 QUICK_EXPERIMENTS = {
     "jev_best_recall": {
-        "label": "🔎 Use Jev best-recall workflow",
-        "help": "Use the frozen Jev policy that reached 7.8% recall / 83.2% accuracy on a separate 3,000-review holdout. Experimental; all results stay in human review.",
+        "label": "🔎 Use Jev Choice (experimental)",
+        "help": "Use Jev's direct Choice label. On 961 paired fresh-holdout reviews: 9.2% recall and 84.2% accuracy. Partial result; all cases stay in human review.",
         "changes": {
             "architecture": "jev", "provider": "typesafe", "model": "jev-1.13.0",
             "temperature": 0.0, "confidence_threshold": 0.75,
-            "reason": "Try the frozen Jev best-recall workflow; route every result to a human",
+            "reason": "Use Jev Choice as an experimental advisory label; route every result to a human",
         },
     },
     "cautious": {
@@ -77,11 +77,12 @@ def render_configuration(config_store, active_config, mark_step_done, goto):
         defaults.update({"provider": "groq", "model": "openai/gpt-oss-120b", "temperature": 0.2})
     if architecture == "jev":
         st.info(
-            "Jev uses the frozen best-recall policy: model jev-1.13.0 and "
-            "1 − P(business_burst) ≥ 0.98. On the locked 3,000-review holdout it reached "
-            "7.8% recall and 83.2% accuracy. That result is not a promise for this dashboard's "
-            "different evidence sample. Jev scores are uncalibrated, so every decision is sent "
-            "to the human queue; this architecture cannot auto-remove or auto-clear reviews."
+            "Jev uses the direct Choice label (model jev-1.13.0); there is no score threshold. "
+            "On a fresh evaluation stopped at 961 of 3,000 reviews, Choice reached 9.2% recall "
+            "and 84.2% accuracy. This partial result is below the 20% recall / 85% accuracy "
+            "targets and is not a completed large-scale evaluation. Choice probabilities are "
+            "not calibrated for Yelp fraud. Every result goes to a human; this architecture "
+            "cannot auto-remove or auto-clear reviews."
         )
 
     st.divider()
@@ -90,7 +91,7 @@ def render_configuration(config_store, active_config, mark_step_done, goto):
             system_prompt = defaults["system_prompt"]
             provider, model, temperature = "typesafe", "jev-1.13.0", 0.0
             confidence_threshold = float(defaults["confidence_threshold"])
-            st.caption("Jev's evaluation rubric and decision threshold are frozen to the best-performing tested version.")
+            st.caption("Jev Choice returns a direct label. Confidence thresholds do not control Jev routing; all Jev results require human review.")
         else:
             system_prompt = st.text_area("System prompt", value=defaults["system_prompt"], height=220)
             col1, col2, col3 = st.columns(3)

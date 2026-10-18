@@ -9,12 +9,11 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from dashboard.agent_architectures import register_architecture
-from dashboard.jev_model import JevAPIError, classify_review_dimensions
+from dashboard.jev_model import JevAPIError, classify_review
 from dashboard.live_agent import get_toolbox
 
 
 MODEL_ID = "jev-1.13.0"
-FILTERED_SCORE_THRESHOLD = 0.98
 MAX_SIMILARITY_TEXTS = 300
 
 
@@ -126,7 +125,7 @@ def _time_aware_evidence(toolbox, review):
 
 
 def run_jev_investigation_stream(review, config):
-    """Apply the frozen Jev policy; confidence remains uncalibrated and routes to a human."""
+    """Use Jev Choice as an advisory label; every result routes to a human."""
     api_key = get_typesafe_api_key()
     if not api_key:
         yield {"type": "error", "message": "TYPESAFE_API_KEY is not set. Add it in the sidebar or Streamlit secrets."}
@@ -149,29 +148,24 @@ def run_jev_investigation_stream(review, config):
             yield {"type": "tool_call", "turn": 0, "tool": tool_name,
                    "input": tool_input, "result": evidence[key]}
 
-        result = classify_review_dimensions(
-            review, evidence, api_key=api_key, model=MODEL_ID,
-        )
-        probabilities = result["probabilities"]
-        decision_score = 1.0 - probabilities["business_burst"]
-        predicted = decision_score >= FILTERED_SCORE_THRESHOLD
-        direction = "met" if predicted else "did not meet"
+        result = classify_review(review, evidence, api_key=api_key, model=MODEL_ID)
+        predicted = result["predicted_filtered"]
+        choice_probabilities = result.get("choice_probabilities", {})
         reasoning = (
-            f"Frozen Jev policy: 1 − P(business_burst) = {decision_score:.3f}; "
-            f"the {FILTERED_SCORE_THRESHOLD:.2f} filtered threshold was {direction}. "
-            "Jev factor probabilities are not calibrated confidence, so this result is routed to human review."
+            f"Jev Choice selected {'filtered' if predicted else 'recommended'} after reviewing "
+            "the available reviewer-history, business-trend, and text-similarity evidence. "
+            "This experimental label is not a calibrated fraud probability; a human must review it."
         )
         yield {
             "type": "final",
             "predicted_filtered": predicted,
             "confidence": None,
             "confidence_calibrated": False,
-            "primary_signal": "business_trend",
+            "primary_signal": "combination",
             "reasoning": reasoning,
             "turns_used": 1,
-            "jev_decision_score": decision_score,
-            "jev_threshold": FILTERED_SCORE_THRESHOLD,
-            "jev_probabilities": probabilities,
+            "jev_choice": "filtered" if predicted else "recommended",
+            "jev_choice_probabilities": choice_probabilities,
             "model": result.get("model", MODEL_ID),
         }
     except JevAPIError as exc:

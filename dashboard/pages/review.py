@@ -165,8 +165,10 @@ def render_agent_review(sample, active_config, provider_presets, judged_review_i
                 confidence = final_result["confidence"]
                 true_filtered = bool(row["filtered"])
                 routing = compute_routing(predicted_filtered, confidence, threshold)
+                is_jev = active_config.get("architecture") == "jev"
                 confidence_display = (
-                    f"{confidence:.0%} confidence" if confidence is not None else "confidence not calibrated"
+                    "Jev Choice · experimental" if is_jev else
+                    (f"{confidence:.0%} confidence" if confidence is not None else "confidence not calibrated")
                 )
 
                 st.divider()
@@ -178,16 +180,24 @@ def render_agent_review(sample, active_config, provider_presets, judged_review_i
                     st.caption("Routing decision")
                     render_badge(ROUTING_LABELS[routing], ROUTING_TONE[routing])
                     if routing == "queue":
-                        if confidence is None:
+                        if is_jev:
+                            st.caption("Jev Choice is advisory. A human must review this result; no automatic action is taken.")
+                        elif confidence is None:
                             st.caption("⚠️ This model's output is not calibrated for autonomous routing; a human must review it.")
                         else:
                             st.caption("⚠️ Confidence fell below the threshold — the policy falls back to a human, "
                                        "exactly as designed, rather than guessing.")
                 st.markdown(f"**Primary signal:** {final_result['primary_signal']}")
                 st.markdown(f"**Reasoning:** {final_result['reasoning']}")
-                if final_result.get("jev_probabilities"):
-                    st.caption("Jev dimension outputs (uncalibrated probabilities)")
-                    st.json(final_result["jev_probabilities"])
+                if is_jev:
+                    st.info(
+                        "Jev Choice selected a label from the evidence shown above. Its label "
+                        "probabilities are not validated or calibrated as Yelp fraud probabilities. "
+                        "YelpZip's `filtered` label is a benchmark reference, not verified fraud ground truth."
+                    )
+                if final_result.get("jev_choice_probabilities"):
+                    st.caption("Model-reported Choice probabilities (not calibrated for fraud detection)")
+                    st.json(final_result["jev_choice_probabilities"])
 
                 correct = predicted_filtered == true_filtered
                 if st.button("Reveal Yelp's actual answer"):

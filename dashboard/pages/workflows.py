@@ -73,7 +73,11 @@ def render_analyst_queue(sample, toolbox, active_config, mlflow_tracking, judged
             confidence = agent_judgment["confidence"]
             threshold = active_config["confidence_threshold"]
             routing = compute_routing(predicted_filtered, confidence, threshold)
-            confidence_display = f"{confidence:.0%} confidence" if confidence is not None else "confidence not calibrated"
+            is_jev = active_config.get("architecture") == "jev"
+            confidence_display = (
+                "Jev Choice · experimental" if is_jev else
+                (f"{confidence:.0%} confidence" if confidence is not None else "confidence not calibrated")
+            )
 
             verdict_col, routing_col = st.columns(2)
             with verdict_col:
@@ -82,6 +86,8 @@ def render_analyst_queue(sample, toolbox, active_config, mlflow_tracking, judged
             with routing_col:
                 st.caption("Agent's routing")
                 render_badge(ROUTING_LABELS[routing], ROUTING_TONE[routing])
+                if is_jev:
+                    st.caption("Advisory result; a human makes the decision.")
             st.markdown(f"**Primary signal:** {agent_judgment['primary_signal']}")
             st.markdown(f"**Agent's reasoning:** {agent_judgment['reasoning'] or '*(not recorded)*'}")
 

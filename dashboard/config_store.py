@@ -20,7 +20,7 @@ DEFAULT_CONFIG = {
     "provider": "typesafe",
     "model": "jev-1.13.0",
     "confidence_threshold": 0.75,
-    "reason": "Default to the experimental Jev best-recall workflow; all outputs require human review.",
+    "reason": "Default to experimental Jev Choice; all outputs require human review.",
     "deployed_at": None,
 }
 
