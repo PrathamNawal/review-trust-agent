@@ -19,6 +19,9 @@ of a solved problem.
 hypothesis, users & JTBD, scope & tradeoffs, evaluation plan, top risks, plus three real
 hard-case walkthroughs.
 
+**[Read the architecture & modularization guide →](ARCHITECTURE.md)** — current system
+boundaries, shared contracts, experiment plug-in points, and the safe migration plan.
+
 This dashboard is a real Streamlit app running real Python — not a mockup. Every
 number, chart, and control is wired to a real computation (see "What's real vs. scoped
 down" below).

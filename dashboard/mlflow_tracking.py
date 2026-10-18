@@ -12,6 +12,7 @@ import os
 
 import mlflow
 import pandas as pd
+from dashboard.metrics import binary_classification_metrics, wilson_interval
 
 TRACKING_DB = os.path.join(os.path.dirname(__file__), "..", "data", "mlflow.db")
 EXPERIMENT_NAME = "review-trust-agent"
@@ -141,13 +142,8 @@ def resolve_appeal(review_id, config_version):
 
 
 def _wilson_ci(successes, n, z=1.96):
-    if n == 0:
-        return (0.0, 0.0)
-    p = successes / n
-    denom = 1 + z**2 / n
-    center = (p + z**2 / (2 * n)) / denom
-    margin = (z * ((p * (1 - p) / n + z**2 / (4 * n**2)) ** 0.5)) / denom
-    return (max(0.0, center - margin), min(1.0, center + margin))
+    """Compatibility wrapper for the shared metrics module."""
+    return wilson_interval(successes, n, z)
 
 
 def get_all_runs():
@@ -168,22 +164,29 @@ def summarize_by_group(group_cols=("tags.judge_type", "tags.config_version")):
     for keys, group in runs.groupby(list(group_cols)):
         n = len(group)
         correct = group["metrics.correct"].sum()
-        accuracy = correct / n
         acc_lo, acc_hi = _wilson_ci(correct, n)
-
-        tp = ((group["metrics.predicted_filtered"] == 1) & (group["metrics.true_filtered"] == 1)).sum()
-        fp = ((group["metrics.predicted_filtered"] == 1) & (group["metrics.true_filtered"] == 0)).sum()
-        fn = ((group["metrics.predicted_filtered"] == 0) & (group["metrics.true_filtered"] == 1)).sum()
-        precision = tp / (tp + fp) if (tp + fp) else float("nan")
-        recall = tp / (tp + fn) if (tp + fn) else float("nan")
+        classification = binary_classification_metrics(
+            group["metrics.true_filtered"].tolist(),
+            group["metrics.predicted_filtered"].tolist(),
+        )
 
         row = dict(zip(group_cols, keys if isinstance(keys, tuple) else (keys,)))
         row.update({
             "n": n,
-            "accuracy": round(accuracy, 3),
+            "accuracy": round(classification["accuracy"], 3),
             "accuracy_ci": f"{acc_lo:.0%}-{acc_hi:.0%}",
-            "precision": round(precision, 3) if precision == precision else None,
-            "recall": round(recall, 3) if recall == recall else None,
+            "precision": round(classification["precision"], 3) if classification["precision"] is not None else None,
+            "recall": round(classification["recall"], 3) if classification["recall"] is not None else None,
+            "specificity": round(classification["specificity"], 3) if classification["specificity"] is not None else None,
+            "false_positive_rate": round(classification["false_positive_rate"], 3)
+            if classification["false_positive_rate"] is not None else None,
+            "f1": round(classification["f1"], 3) if classification["f1"] is not None else None,
+            "balanced_accuracy": round(classification["balanced_accuracy"], 3)
+            if classification["balanced_accuracy"] is not None else None,
+            "true_positive": classification["true_positive"],
+            "false_positive": classification["false_positive"],
+            "false_negative": classification["false_negative"],
+            "true_negative": classification["true_negative"],
             "avg_confidence": round(group["metrics.confidence"].mean(), 3),
         })
         if "metrics.turns_used" in group.columns:

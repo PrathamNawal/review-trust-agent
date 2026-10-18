@@ -72,6 +72,14 @@ TOOL_DEFS = [
     },
 ]
 
+
+def get_tool_definition(name):
+    """Return the canonical model-facing tool contract by stable name."""
+    for definition in TOOL_DEFS:
+        if definition["name"] == name:
+            return definition
+    raise KeyError(f"Unknown tool definition: {name}")
+
 SYSTEM_PROMPT = """You are a trust & safety investigator checking whether a Yelp review is likely \
 fake/manipulated (would be filtered) or genuine (would be recommended).
 
@@ -87,36 +95,51 @@ answer. If the signals genuinely conflict, your confidence should reflect that â
 false certainty."""
 
 
+def _reviewer_history(toolbox, review, args):
+    exclude = review["review_id"] if args["user_id"] == review["user_id"] else None
+    return toolbox.reviewer_history_lookup(args["user_id"], exclude_review_id=exclude)
+
+
+def _business_trend(toolbox, review, args):
+    exclude = review["review_id"] if args["prod_id"] == review["prod_id"] else None
+    return toolbox.business_trend_lookup(
+        args["prod_id"], args["around_date"], exclude_review_id=exclude
+    )
+
+
+def _text_similarity(toolbox, review, args):
+    same_target = (
+        (args["compare_against"] == "reviewer" and args["target_id"] == review["user_id"])
+        or (args["compare_against"] == "business" and args["target_id"] == review["prod_id"])
+    )
+    exclude = review["review_id"] if same_target else None
+    return toolbox.text_similarity_check(
+        args["review_text"], args["compare_against"], args["target_id"],
+        exclude_review_id=exclude,
+    )
+
+
+# Runtime handlers are separate from the provider-neutral JSON schemas. New
+# evidence tools can register behavior without adding another dispatch branch.
+TOOL_HANDLERS = {
+    "reviewer_history_lookup": _reviewer_history,
+    "business_trend_lookup": _business_trend,
+    "text_similarity_check": _text_similarity,
+}
+
+
+def register_tool_handler(name, handler):
+    if name not in {tool["name"] for tool in TOOL_DEFS}:
+        raise ValueError(f"No schema registered for tool: {name}")
+    TOOL_HANDLERS[name] = handler
+
+
 def dispatch_tool_call(toolbox, review, tool_name, tool_input):
-    """Shared dispatch logic: excludes the review under investigation from its own
-    comparison set, but only when the model's tool target IS that same review's
-    reviewer/business â€” a lookup on a different id is never excluded."""
-    exclude = review["review_id"]
-
-    if tool_name == "reviewer_history_lookup":
-        excl = exclude if tool_input["user_id"] == review["user_id"] else None
-        return toolbox.reviewer_history_lookup(tool_input["user_id"], exclude_review_id=excl)
-
-    if tool_name == "business_trend_lookup":
-        excl = exclude if tool_input["prod_id"] == review["prod_id"] else None
-        return toolbox.business_trend_lookup(
-            tool_input["prod_id"], tool_input["around_date"], exclude_review_id=excl
-        )
-
-    if tool_name == "text_similarity_check":
-        same_target = (
-            (tool_input["compare_against"] == "reviewer" and tool_input["target_id"] == review["user_id"])
-            or (tool_input["compare_against"] == "business" and tool_input["target_id"] == review["prod_id"])
-        )
-        excl = exclude if same_target else None
-        return toolbox.text_similarity_check(
-            tool_input["review_text"],
-            tool_input["compare_against"],
-            tool_input["target_id"],
-            exclude_review_id=excl,
-        )
-
-    raise ValueError(f"Unknown tool: {tool_name}")
+    """Dispatch a schema-defined evidence tool with consistent self-exclusion."""
+    handler = TOOL_HANDLERS.get(tool_name)
+    if handler is None:
+        raise ValueError(f"Unknown or non-evidence tool: {tool_name}")
+    return handler(toolbox, review, tool_input)
 
 
 def format_review_prompt(review):

@@ -31,30 +31,19 @@ this was trusted:
 """
 
 import ast
+from copy import deepcopy
 import os
-import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
-
-from tool_schemas import format_review_prompt, dispatch_tool_call  # noqa: E402
-from tools import ToolBox  # noqa: E402
-from data_index import load_index  # noqa: E402
+from scripts.tool_schemas import format_review_prompt, dispatch_tool_call, TOOL_DEFS
+from scripts.tools import ToolBox
+from scripts.data_index import load_index
 
 from agno.agent import Agent  # noqa: E402
 from agno.tools import tool as agno_tool  # noqa: E402
-from agno.models.groq import Groq  # noqa: E402
-from agno.models.anthropic import Claude  # noqa: E402
-from agno.models.google import Gemini  # noqa: E402
-from agno.models.openrouter import OpenRouter  # noqa: E402
+from dashboard.agent_architectures import register_architecture
+from dashboard.providers import PROVIDER_PRESETS, build_model
 
 MAX_TURNS = 6  # safety cap on model calls per investigation, same bound as before
-
-PROVIDER_PRESETS = {
-    "groq": {"api_key_env": "GROQ_API_KEY", "model_cls": Groq},
-    "openrouter": {"api_key_env": "OPENROUTER_API_KEY", "model_cls": OpenRouter},
-    "gemini": {"api_key_env": "GOOGLE_API_KEY", "model_cls": Gemini},
-    "claude": {"api_key_env": "ANTHROPIC_API_KEY", "model_cls": Claude},
-}
 
 
 class MissingAPIKey(Exception):
@@ -80,51 +69,37 @@ def _require_key(env_name):
 
 
 def _build_tools(toolbox, review):
-    """Builds Agno tool functions bound to this specific review under
-    investigation. Each one delegates to dispatch_tool_call() — the single
-    place the self-exclusion logic lives — rather than reimplementing it, so
-    this file can't drift out of sync with the rest of the project's tool
-    behavior. Docstrings double as the tool descriptions Agno sends the
-    model, so they're kept word-for-word aligned with tool_schemas.TOOL_DEFS."""
+    """Adapt canonical JSON-schema tools to Agno without duplicating wrappers."""
+    tools = []
 
-    def reviewer_history_lookup(user_id: str) -> dict:
-        """Look up a reviewer's posting history: review count, average rating,
-        rating spread, and burst timing. Call this for the reviewer under
-        investigation, or for any other reviewer you want to cross-check
-        (e.g. a reviewer who left similar-looking text at the same business)."""
-        return dispatch_tool_call(toolbox, review, "reviewer_history_lookup", {"user_id": user_id})
+    def make_evidence_adapter(tool_name):
+        def adapter(**arguments):
+            return dispatch_tool_call(toolbox, review, tool_name, arguments)
+        return adapter
 
-    def business_trend_lookup(prod_id: str, around_date: str) -> dict:
-        """Look up a business's review volume and rating trend around a given
-        date (format YYYY-MM-DD). A sudden spike in review velocity
-        (burst_ratio well above 1) around the review's date is a classic sign
-        of an incentivized or coordinated campaign."""
-        return dispatch_tool_call(
-            toolbox, review, "business_trend_lookup",
-            {"prod_id": prod_id, "around_date": around_date},
-        )
+    for definition in TOOL_DEFS:
+        name = definition["name"]
 
-    def text_similarity_check(review_text: str, compare_against: str, target_id: str) -> dict:
-        """Compare a piece of review text against a reviewer's or a business's
-        other reviews for templated or near-duplicate phrasing. compare_against
-        must be exactly 'reviewer' or 'business'. Use this on the review under
-        investigation, or on any other review text you've seen (e.g. from a
-        second reviewer) to check whether they read like the same template."""
-        return dispatch_tool_call(
-            toolbox, review, "text_similarity_check",
-            {"review_text": review_text, "compare_against": compare_against, "target_id": target_id},
-        )
+        if name == "submit_judgment":
+            def adapter(**arguments):
+                return "submitted"
+            stop_after = True
+        else:
+            adapter = make_evidence_adapter(name)
+            stop_after = False
 
-    @agno_tool(stop_after_tool_call=True)
-    def submit_judgment(predicted_filtered: bool, confidence: float, primary_signal: str, reasoning: str) -> str:
-        """Submit your final judgment once you have enough evidence. Ends the
-        investigation. predicted_filtered: true if the review is likely fake.
-        confidence: a number from 0.0 to 1.0. primary_signal: one of
-        reviewer_pattern, business_trend, text_similarity, combination.
-        reasoning: 1-2 sentences justifying the answer."""
-        return "submitted"
-
-    return [reviewer_history_lookup, business_trend_lookup, text_similarity_check, submit_judgment]
+        adapter.__name__ = name
+        adapter.__doc__ = definition["description"]
+        adapted = agno_tool(
+            name=name,
+            description=definition["description"],
+            stop_after_tool_call=stop_after,
+        )(adapter)
+        # Agno builds a Python-oriented schema from the callable. Replace that
+        # schema with the canonical provider-neutral contract for exact parity.
+        adapted.parameters = deepcopy(definition["parameters"])
+        tools.append(adapted)
+    return tools
 
 
 def _parse_tool_result(result):
@@ -142,11 +117,11 @@ def _parse_tool_result(result):
 
 
 def _build_model(provider, model_id, api_key, temperature):
-    preset = PROVIDER_PRESETS[provider]
-    return preset["model_cls"](id=model_id, api_key=api_key, temperature=temperature)
+    """Compatibility wrapper; provider construction lives in providers.py."""
+    return build_model(provider, model_id, api_key, temperature)
 
 
-def run_investigation_stream(review, config):
+def run_agno_investigation_stream(review, config):
     """
     review: dict with review_id, user_id, prod_id, rating, date, review_text
     config: dict with provider, model, temperature, system_prompt
@@ -204,3 +179,9 @@ def run_investigation_stream(review, config):
 
     yield {"type": "final", "turns_used": turn + 1, "_incomplete": True,
            "reasoning": f"Exceeded max turns ({MAX_TURNS}) without a judgment."}
+
+
+register_architecture("agno", run_agno_investigation_stream)
+
+# Preserve the previous import path for callers outside the dashboard.
+run_investigation_stream = run_agno_investigation_stream

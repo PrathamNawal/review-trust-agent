@@ -8,24 +8,13 @@ import json
 import os
 from datetime import datetime, timezone
 
+from scripts.tool_schemas import SYSTEM_PROMPT as DEFAULT_SYSTEM_PROMPT
+
 STORE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "agent_configs.json")
-
-DEFAULT_SYSTEM_PROMPT = """You are a trust & safety investigator checking whether a Yelp review is likely \
-fake/manipulated (would be filtered) or genuine (would be recommended).
-
-You have three evidence-gathering tools plus a submit_judgment tool to end the investigation. \
-You do not have to call all three tools, and you are not limited to calling each one once. If \
-the evidence so far is ambiguous, pull more of it before deciding — for example, if the review's \
-own text looks templated, check a *different* reviewer at the same business to see if their \
-language matches too (a real coordinated campaign), or if a reviewer's history looks bursty, \
-check the business's trend for the same time window to see if the burst lines up.
-
-Only call submit_judgment when you're confident you've gathered enough evidence to justify your \
-answer. If the signals genuinely conflict, your confidence should reflect that — don't manufacture \
-false certainty."""
 
 DEFAULT_CONFIG = {
     "version": "v0",
+    "architecture": "agno",
     "system_prompt": DEFAULT_SYSTEM_PROMPT,
     "temperature": 0.2,
     "provider": "groq",
@@ -54,12 +43,14 @@ def get_active_config():
     active_version = data["active"]
     for v in data["versions"]:
         if v["version"] == active_version:
-            return v
-    return data["versions"][-1]
+            return {**DEFAULT_CONFIG, **v, "architecture": v.get("architecture", "agno")}
+    fallback = data["versions"][-1]
+    return {**DEFAULT_CONFIG, **fallback, "architecture": fallback.get("architecture", "agno")}
 
 
 def list_versions():
-    return _load_raw()["versions"]
+    return [{**DEFAULT_CONFIG, **v, "architecture": v.get("architecture", "agno")}
+            for v in _load_raw()["versions"]]
 
 
 def _summarize_diff(old, new):
@@ -67,6 +58,7 @@ def _summarize_diff(old, new):
     changes = []
     for key, label in [
         ("system_prompt", "system prompt"),
+        ("architecture", "architecture"),
         ("temperature", "temperature"),
         ("provider", "provider"),
         ("model", "model"),
@@ -80,7 +72,8 @@ def _summarize_diff(old, new):
     return "; ".join(changes) if changes else "No parameter changes."
 
 
-def deploy_new_version(system_prompt, temperature, provider, model, confidence_threshold, reason=""):
+def deploy_new_version(system_prompt, temperature, provider, model, confidence_threshold,
+                       reason="", architecture="agno"):
     """Appends a new config version and makes it active. Returns the new version dict."""
     data = _load_raw()
     current = get_active_config()
@@ -88,13 +81,14 @@ def deploy_new_version(system_prompt, temperature, provider, model, confidence_t
     next_num = len(data["versions"])
     new_version = {
         "version": f"v{next_num}",
+        "architecture": architecture,
         "system_prompt": system_prompt,
         "temperature": temperature,
         "provider": provider,
         "model": model,
         "confidence_threshold": confidence_threshold,
         "reason": reason.strip() or _summarize_diff(current, {
-            "system_prompt": system_prompt, "temperature": temperature,
+            "system_prompt": system_prompt, "architecture": architecture, "temperature": temperature,
             "provider": provider, "model": model, "confidence_threshold": confidence_threshold,
         }),
         "deployed_at": datetime.now(timezone.utc).isoformat(),
