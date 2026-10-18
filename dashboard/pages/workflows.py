@@ -81,8 +81,11 @@ def render_analyst_queue(sample, toolbox, active_config, mlflow_tracking, judged
 
             verdict_col, routing_col = st.columns(2)
             with verdict_col:
-                st.metric("Agent's verdict", "Likely fake" if predicted_filtered else "Likely genuine",
-                          confidence_display)
+                st.metric(
+                    "Agent's verdict · Jev Choice (experimental)" if is_jev else "Agent's verdict",
+                    "Likely fake" if predicted_filtered else "Likely genuine",
+                    None if is_jev else confidence_display,
+                )
             with routing_col:
                 st.caption("Agent's routing")
                 render_badge(ROUTING_LABELS[routing], ROUTING_TONE[routing])

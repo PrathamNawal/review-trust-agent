@@ -174,8 +174,11 @@ def render_agent_review(sample, active_config, provider_presets, judged_review_i
                 st.divider()
                 verdict_col, routing_col = st.columns(2)
                 with verdict_col:
-                    st.metric("Verdict", "Likely fake" if predicted_filtered else "Likely genuine",
-                              confidence_display)
+                    st.metric(
+                        "Verdict · Jev Choice (experimental)" if is_jev else "Verdict",
+                        "Likely fake" if predicted_filtered else "Likely genuine",
+                        None if is_jev else confidence_display,
+                    )
                 with routing_col:
                     st.caption("Routing decision")
                     render_badge(ROUTING_LABELS[routing], ROUTING_TONE[routing])
