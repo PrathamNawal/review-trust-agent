@@ -8,38 +8,30 @@ from dashboard.ui_components import render_process_step
 
 
 def render_overview(goto):
-    st.markdown(
-        '<div class="rta-page-eyebrow">WHY REVIEW CONTEXT MATTERS</div>',
-        unsafe_allow_html=True,
-    )
-    st.title("One review rarely tells the whole story.")
-    st.markdown(
-        "A rating and comment can look ordinary on their own. Patterns in reviewer activity, "
-        "business activity, or repeated wording can add context worth investigating — but they "
-        "are signals, not proof of fraud."
-    )
-
     image_path = Path(__file__).resolve().parents[1] / "assets" / "review-trust-comparison.jpg"
-    with st.container(border=True):
+    story, illustration = st.columns([0.88, 1.12], gap="large", vertical_alignment="center")
+    with story:
+        st.markdown(
+            '<div class="rta-page-eyebrow">WHY REVIEW CONTEXT MATTERS</div>',
+            unsafe_allow_html=True,
+        )
+        st.title("One review rarely tells the whole story.")
+        st.markdown(
+            "A rating and comment can look ordinary on their own. Patterns in reviewer activity, "
+            "business activity, or repeated wording can add context worth investigating — but they "
+            "are signals, not proof of fraud."
+        )
+        if st.button("See how the investigation works →", type="primary"):
+            goto("2. How it works")
+
+    with illustration.container(border=True):
         st.image(
             str(image_path),
             width="stretch",
             caption=(
-                "Without context: a review stands alone. With Review Trust Agent: evidence is "
-                "gathered for a person to assess; the human makes the final decision."
+                "Without context → with evidence for a human to assess. The human makes the final call."
             ),
         )
-
-    without, with_agent = st.columns(2, gap="large")
-    with without:
-        st.markdown("**WITHOUT REVIEW TRUST**")
-        st.caption("A reviewer sees one post at a time, with little visibility into surrounding patterns.")
-    with with_agent:
-        st.markdown("**WITH REVIEW TRUST AGENT**")
-        st.caption("The agent brings relevant patterns together. A human reviews its advisory label.")
-
-    if st.button("See how the investigation works →", type="primary"):
-        goto("2. How it works")
 
 
 def render_how_it_works(goto):
