@@ -101,7 +101,6 @@ def render_configuration(config_store, active_config, mark_step_done, goto):
         with col:
             if st.button(exp["label"], help=exp["help"], key=f"exp_{key}"):
                 st.session_state["config_prefill"] = {**prefill, **exp["changes"]}
-                st.session_state["selected_agent_architecture"] = exp["changes"].get("architecture", architecture)
                 if "jev_method" in exp["changes"]:
                     st.session_state["jev_config_generation"] = st.session_state.get("jev_config_generation", 0) + 1
                 st.rerun()
