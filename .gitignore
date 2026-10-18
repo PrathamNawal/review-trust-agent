@@ -1,5 +1,10 @@
 data/agent_configs.json
 data/mlflow.db
+data/jev_experiment_runs/
+data/yelpzip_eval/
+.env
+.env.*
+!.env.example
 __pycache__/
 *.pyc
 .DS_Store

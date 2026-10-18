@@ -1,0 +1,5 @@
+Assess whether the review is likely to be filtered by Yelp for possible manipulation. The project prioritizes finding filtered reviews, while the final system must still reach at least 84% accuracy.
+
+Look for concrete behavior patterns in the supplied prior-review evidence: unusually dense review activity, repeated or highly similar wording across a reviewer or business, abrupt bursts of reviews, or a review pattern that conflicts with the stated experience. A positive rating, negative rating, brief text, unusual writing style, or lack of history alone is not sufficient evidence.
+
+Choose filtered when one or more specific behavior patterns provide meaningful support for manipulation, even if certainty is moderate. Choose recommended when the evidence is ordinary, contradictory, or too sparse to support a manipulation concern. Treat unavailable evidence as unknown. Do not invent evidence and do not infer from dataset labels or review identifiers.

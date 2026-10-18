@@ -1,0 +1,7 @@
+{
+  "version": "jev-business-nonburst-policy-v1",
+  "candidate_signal": "business_no_burst = 1 - probability that evidence.business_trend shows an abrupt volume burst",
+  "threshold_selection": "On prior development batches only, choose the threshold with highest recall among thresholds with accuracy at least 0.80. Apply that threshold unchanged to the next 50-review batch.",
+  "status": "Exploratory hypothesis from development batches 0 and 1; must validate on later untouched batches before adoption.",
+  "rationale": "In the first 100 development reviews, the model's business_burst probability was inversely associated with YelpZip filtered labels. This may reflect label semantics or noise and is not assumed to generalize."
+}

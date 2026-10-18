@@ -1,0 +1,17 @@
+{
+  "version": "jev-decomposed-v1",
+  "model": "jev-1.13.0",
+  "questions": {
+    "overall_risk": "Does the combined evidence support that Yelp would filter this review as potentially manipulated? Use only specific behavioral evidence in evidence. Do not infer from rating or sentiment alone. Treat missing evidence as unknown.",
+    "reviewer_activity": "Does evidence.reviewer_history show an unusually dense or coordinated review-posting cadence? Consider review count, minimum gaps, and maximum reviews in any seven-day window. Missing history is not suspicious by itself.",
+    "business_burst": "Does evidence.business_trend show an abrupt review-volume increase around this review date, considering both burst_ratio and reviews_in_window? Do not treat a small count or ordinary sustained activity as a burst.",
+    "reviewer_text_reuse": "Does evidence.reviewer_text_similarity show materially repeated wording across this review and the reviewer's earlier reviews? Consider similarity and comparison count; missing comparisons are unknown.",
+    "business_text_reuse": "Does evidence.business_text_similarity show materially repeated wording across this review and earlier reviews for the business? Consider similarity and comparison count; missing comparisons are unknown."
+  },
+  "aggregation_candidates": [
+    "overall_risk probability",
+    "maximum of four factor probabilities",
+    "mean of four factor probabilities"
+  ],
+  "threshold_selection": "On development data only, select the aggregation and threshold with maximum recall among settings whose accuracy is at least 0.80. Validate the frozen choice on subsequent untouched development batches and then the locked final holdout."
+}

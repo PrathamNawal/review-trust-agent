@@ -1,0 +1,5 @@
+Determine whether Yelp would likely filter this review for possible manipulation using only the review and the supplied historical evidence. Preserve the project accuracy guardrail of at least 84% while seeking recall of at least 50%.
+
+Choose filtered only when there is strong, specific behavioral evidence: either one unusually strong signal or at least two independent, moderately concerning signals that reinforce each other. Examples include a clearly exceptional reviewer posting burst, near-duplicate review wording, or a sharp business review burst combined with another suspicious pattern. A single ordinary burst, a high rating, sentiment, brief text, unusual wording, or missing history is not enough by itself.
+
+Choose recommended when the evidence is ordinary, when a suspicious pattern is weak or isolated, when signals conflict, or when evidence is too sparse to support a concern. Missing evidence is unknown. Do not invent facts or infer from dataset labels or identifiers.

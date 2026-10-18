@@ -1,0 +1,5 @@
+Classify the review using only the supplied review and prior behavioral evidence. Predict the Yelp filtered outcome, prioritizing recall while the evaluation still requires at least 84% accuracy.
+
+Choose filtered if the evidence shows at least one specific, meaningful pattern consistent with coordinated or deceptive reviewing, such as a reviewer posting many reviews in a short period, repeated near-identical text across reviews, a sharp business review burst, or a combination of suspicious behavior signals. Do not require proof of fraud. Do not choose filtered solely because of the star rating, negative or positive sentiment, shortness, unusual phrasing, or missing history.
+
+Choose recommended if the evidence shows no meaningful manipulation pattern, if the review is supported by ordinary behavior, or if evidence is sparse or contradictory. Missing evidence is unknown, not proof of either class. Do not invent facts and do not infer from labels or identifiers.
