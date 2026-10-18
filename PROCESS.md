@@ -15,6 +15,13 @@ months — should be able to read this and understand not just *what* was built,
 
 ## Jev recall experiment: completed 3,000-review evaluation
 
+**Current dashboard method (2026-10-18):** Jev uses the direct Choice label, not the
+historical business-burst Noul threshold. In a separate fresh paired holdout, evaluation
+stopped at 961/3,000 cases: Choice recall was 9.2% and accuracy 84.2%; direct overall-risk
+Noul was 4.2%/85.7%. This interim result favors Choice on recall, but is below the 20% recall
+and 85% accuracy targets. Choice is advisory, its probabilities are not calibrated for Yelp
+fraud, and every result goes to a human. Details are in the [execution report](experiments/jev-recall-experiment-report.md).
+
 On 2026-10-18, a paired Jev v1 versus decomposed-workflow comparison completed on a
 locked 3,000-review YelpZip holdout (397 filtered labels). At threshold 0.98, recall
 was 4.8% (19/397) for v1 and 7.8% (31/397) for the candidate; accuracy was 84.2% and

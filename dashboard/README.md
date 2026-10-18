@@ -2,8 +2,8 @@
 
 A real Streamlit app, not a mockup — it runs the project's actual Python modules
 (`scripts/tools.py`, `scripts/tool_schemas.py`, `scripts/data_index.py`) directly,
-makes real live LLM calls (Groq, OpenRouter, Gemini, or Claude — your choice, your
-own API key), and logs every judgment to a local MLflow instance for real
+makes real live LLM calls (experimental Jev Choice by default, or Agno with Groq,
+OpenRouter, Gemini, or Claude), and logs every judgment to a local MLflow instance for real
 before/after comparison across config versions.
 
 ## Run it
@@ -53,13 +53,13 @@ The app is a guided funnel, numbered in the order a first-time visitor should cl
 
 | Page | What it does |
 |---|---|
-| **1. What is this?** | The hook: original dashboard metrics (56% human accuracy, 84% accuracy, 0% recall on the initial 50-review batch), the best Jev result (7.8% recall on a separate 3,000-review holdout), and a map of what you can do here |
+| **1. What is this?** | The hook: original dashboard metrics, historical Jev results, and current partial Choice results with their limitations |
 | **2. How it works** | Plain-language walkthrough of the evidence loop and the three tools, before any interaction is asked of you |
 | **3. Try it — Human** | Act as the analyst — real reviews, real evidence, blind judgment, scored live. Ends with a CTA to see the agent judge the *same* review |
-| **4. Try it — Agent** | The active Agno or experimental Jev architecture investigates live and shows evidence and routing. Jev scores are uncalibrated and always go to the human queue. |
+| **4. Try it — Agent** | The active experimental Jev Choice method investigates live and shows its evidence trail. Its output is advisory, probabilities are not calibrated for fraud, and every result goes to a human. Agno remains available in configuration. |
 | **5. Analyst Queue** | The real analyst workflow: the agent's already-computed verdict, confidence, and evidence trail for a case, with Accept / Override / Escalate — every decision logged, so agreement and override rate become real metrics instead of silent disagreement. Appealed cases (from page 6) surface here first. |
 | **6. Check My Review** | As the reviewer/business behind a review, see the real routing decision and plain-language reasoning — ground truth is deliberately not shown, since a real reviewer wouldn't know it either — and appeal an auto-removal, which files a real, trackable case into the Analyst Queue. |
-| **7. Play — Tweak the Agent** | Jev is the default experimental architecture; Agno remains selectable. Jev uses its frozen 0.98 policy and always sends decisions to human review. Evaluate candidates before deployment; roll back to any prior version at any time. |
+| **7. Play — Tweak the Agent** | Jev Choice is the default experimental method; Agno remains selectable. Jev returns a direct label without a score threshold and always sends results to human review. Evaluate candidates before deployment; roll back to any prior version at any time. |
 | **8. Track Performance** | Leads with a plain-language before/after delta ("your last config change moved accuracy from X% to Y%"), then the full MLflow-backed breakdown — accuracy, precision, recall, confidence intervals, avg turns |
 
 ## Resetting to a clean state

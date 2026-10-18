@@ -16,9 +16,11 @@ Jev experiment.
 **Best Jev result:** the decomposed Jev workflow reached **7.8% recall** (31/397) and
 83.2% accuracy on a separate locked 3,000-review holdout, versus 4.8% recall and 84.2%
 accuracy for Jev v1. The recall improved, but it missed the 85% accuracy target and was
-not a direct comparison against Agno. Jev is now the default experimental Streamlit
-architecture and Agno remains available; Jev decisions stay in human review. See the
-[full results and limitations](experiments/jev-recall-experiment-report.md).
+not a direct comparison against Agno. The Streamlit Jev adapter now uses the direct
+**Choice** method. In a separate fresh paired evaluation stopped at 961 of 3,000 reviews,
+Choice reached **9.2% recall and 84.2% accuracy**; this partial result did not meet the
+≥20% recall / ≥85% accuracy targets. Jev remains experimental and every decision goes to
+human review. See the [full results and limitations](experiments/jev-recall-experiment-report.md).
 
 **[Read the full case study →](PRODUCT_CASE_STUDY.md)** — business problem, impact,
 hypothesis, users & JTBD, scope & tradeoffs, evaluation plan, top risks, plus three real
@@ -40,10 +42,10 @@ down" below).
 
 - **Human Review** and **System Config** and **Performance Tracking** work
   immediately, no API key needed.
-- **Agent Review** (the live agent) needs your own API key for one provider —
-  paste it in the sidebar (session-only, never stored). Get a free key in
-  under a minute: [Groq console](https://console.groq.com/keys) (the default
-  configured provider) or [OpenRouter](https://openrouter.ai/keys).
+- **Agent Review** uses experimental Jev Choice by default and needs a TypeSafe
+  API key, entered in the sidebar for the current session or configured in Streamlit
+  secrets. Agno is also available and can use Groq, OpenRouter, Gemini, or Claude keys.
+  Keys entered in the sidebar are session-only and never stored in project files.
 
 ## What's real vs. scoped down for this public demo
 

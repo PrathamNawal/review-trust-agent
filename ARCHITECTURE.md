@@ -31,12 +31,12 @@ The UI reads the 5,000-review sample in `data/sample.csv`. Evidence lookups use 
 
 ## Current plug-in points
 
-- **Agent architecture:** register a runner in `dashboard/agent_architectures.py`. It receives the shared review/config contract and yields trace events. `agno` and experimental `jev` adapters are registered; Jev is the default, with Agno available for rollback.
+- **Agent architecture:** register a runner in `dashboard/agent_architectures.py`. It receives the shared review/config contract and yields trace events. `agno` and experimental `jev` adapters are registered; Jev Choice is the default, with Agno available as an alternative.
 - **Model provider:** add a provider model class and API-key environment variable in `dashboard/providers.py`; orchestration remains in the architecture runner.
 - **Prompt and settings:** prompt/config versions live in `dashboard/config_store.py`. The default prompt is sourced from `scripts/tool_schemas.py`; each deployed version preserves its own prompt and architecture selection.
 - **Metrics:** add calculations in `dashboard/metrics.py`, aggregate them in `dashboard/mlflow_tracking.py`, and expose them in the Track Performance view in `dashboard/pages/performance.py`.
 - **Evaluation:** `dashboard/evaluation.py` evaluates and compares configurations on identical fixed examples; the Configuration view can run an optional baseline/candidate review before deployment. These evaluations are live calls and do not write to MLflow.
-- **Jev adapter:** `dashboard/jev_model.py` calls TypeSafe System One using the documented `api.typesafe.ai` endpoint and `TYPESAFE_API_KEY`; `dashboard/jev_agent.py` registers Jev using the frozen 0.98 decision rule. Jev is the default experimental architecture. Its outputs are uncalibrated and always route to a human. `scripts/run_jev_experiment.py` and `scripts/yelpzip_jev_final.py` provide standalone repeatable evaluations with Git-ignored local reports.
+- **Jev adapter:** `dashboard/jev_model.py` calls TypeSafe System One using the documented `api.typesafe.ai` endpoint and `TYPESAFE_API_KEY`; `dashboard/jev_agent.py` uses Jev's direct Choice label with no score threshold. Choice probabilities are not calibrated for Yelp fraud. All Jev outputs route to a human. `scripts/run_jev_experiment.py` and `scripts/yelpzip_jev_final.py` provide standalone repeatable evaluations with Git-ignored local reports.
 - **Evidence:** implement the evidence function in `scripts/tools.py`, define its model-facing contract and register its handler in `scripts/tool_schemas.py`. The Agno adapter binds model-callable functions in `dashboard/live_agent.py`.
 
 ## Guardrails for changes
@@ -51,7 +51,7 @@ The UI reads the 5,000-review sample in `data/sample.csv`. Evidence lookups use 
 
 - Add a candidate-versus-baseline evaluation workflow in the UI, using fixed review IDs and a review gate before deployment.
 - Add durable experiment records so evaluation results survive Streamlit session resets and can be linked to deployed versions.
-- Jev's paired 3,000-review holdout comparison is complete: decomposed workflow recall 7.8% and accuracy 83.2%, versus v1 at 4.8% and 84.2%. It did not meet the ≥20% recall / ≥85% accuracy target. The holdout is consumed; any Agno comparison or revised candidate needs a new untouched evaluation set. See `experiments/jev-recall-experiment-report.md`.
+- Historical Jev v1 versus decomposed comparison on a completed 3,000-review holdout found 7.8% recall / 83.2% accuracy versus 4.8% / 84.2%. A separate fresh Choice comparison was stopped at 961/3,000: Choice reached 9.2% recall / 84.2% accuracy. It is partial, below the ≥20% / ≥85% targets, and is not a completed large-scale evaluation. Treat both holdouts as consumed; use new untouched data for confirmation. See `experiments/jev-recall-experiment-report.md`.
 - Persist evaluation records and support repeatable comparisons across multiple candidate versions; the current UI can evaluate up to the full 40-review golden set and reports recall-focused metrics.
 - Add tests around evidence self-exclusion, tool outputs, config migration, architecture adapters, and evaluation aggregation.
 - Keep config/run storage behind small repository interfaces so local files can later be replaced without changing the UI or agent.

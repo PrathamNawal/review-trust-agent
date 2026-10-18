@@ -4,6 +4,12 @@
 > YelpZip holdout. Neither version met the project target. The holdout is consumed.
 > **Label caveat:** Yelp `filtered` labels are benchmark references, not verified fraud ground truth.
 
+The dashboard's current Jev method is direct **Choice**. A separate fresh paired evaluation
+was stopped at 961 of 3,000 planned reviews: Choice reached 9.2% recall and 84.2% accuracy;
+direct overall-risk Noul reached 4.2% and 85.7%. These are interim results, below the joint
+target, and do not establish a statistically reliable winner. Full metrics and limits are in
+the [execution report](../experiments/jev-recall-experiment-report.md).
+
 ## Acceptance targets
 
 | Measure | Target | Final result |
@@ -45,9 +51,9 @@ Claude 0/6, 84%) is preliminary and not a controlled Agno baseline.
 ## Current decision and next evaluation
 
 - Keep Jev experimental; do not use it for automatic removal.
-- Jev is integrated as the Streamlit default experimental architecture; its uncalibrated
-  decisions always route to a human. The dashboard uses a trimmed evidence index, so the
-  3,000-review result does not predict its live metrics. Agno remains selectable.
+- Jev Choice is integrated as the Streamlit default experimental architecture; its
+  uncalibrated decisions always route to a human. The dashboard uses a trimmed evidence
+  index, so benchmark results do not predict its live metrics. Agno remains selectable.
 - The 3,000-review final holdout is consumed. Do not change a prompt and re-score it as
   confirmatory evidence.
 - Investigate supervised YelpZip graph/activity features; consider Jev for structured

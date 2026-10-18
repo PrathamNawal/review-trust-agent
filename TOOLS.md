@@ -11,6 +11,12 @@ happens to be under evaluation. The fast lookup indices that make this possible
 (`by_user`, `by_prod`) are built once by [scripts/data_index.py](scripts/data_index.py)
 and cached to disk.
 
+The current Streamlit Jev adapter sends all four evidence fields to Jev's **Choice**
+primitive and displays the selected label alongside the evidence trail. Model-reported
+Choice probabilities are not calibrated as Yelp fraud probabilities. Jev labels are
+advisory and always require a human decision; the historical Noul thresholds in the
+experiment report are evaluation candidates, not the active dashboard policy.
+
 ---
 
 ## The self-exclusion mechanism

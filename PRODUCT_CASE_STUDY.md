@@ -246,13 +246,21 @@ Agno dashboard system. The holdout is consumed; future candidates need a new unt
 test set. The study did not directly compare Jev with the Agno implementation. Full results
 and limitations: [Jev execution report](experiments/jev-recall-experiment-report.md).
 
+**Current dashboard method:** Jev Choice is active as an experimental advisory method.
+On a separate fresh holdout evaluation stopped at 961/3,000 reviews, Choice reached 9.2%
+recall and 84.2% accuracy, compared with direct overall-risk Noul at 4.2% and 85.7%.
+The partial result favors Choice on recall but does not meet either joint target. Choice
+probabilities are not calibrated for Yelp fraud, so the dashboard routes every Jev decision
+to a human. This result is interim, not the completed 3,000-review benchmark above.
+
 ## 10. Risks and Tradeoffs (Top 3)
 
 1. **Recall on the Yelp filtered reference class remains low.** The original 50-review
    project batch had 0% recall on six positives. The later Jev holdout measured 7.8%
    recall at 83.2% accuracy for the decomposed candidate, versus 4.8% and 84.2% for Jev
    v1. Neither reached the ≥20% recall / ≥85% accuracy target. These are benchmark-label
-   results, not verified real-fraud rates. Jev is not ready for autonomous action; the
+   results, not verified real-fraud rates. The newer Choice comparison is partial at
+   961 reviews and measured 9.2% recall / 84.2% accuracy. Jev is not ready for autonomous action; the
    final holdout is consumed, so further development needs a new untouched evaluation.
    **The agent is not ready to be trusted with real autonomy.**
 

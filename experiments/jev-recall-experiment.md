@@ -1,6 +1,12 @@
 # Jev recall experiment
 
-**Status:** Paired tuning, development selection, and locked final evaluation complete; no candidate met both target metrics.
+**Status:** Earlier prompt tuning, development selection, and 3,000-case final evaluation are complete. Choice-versus-Score and Choice-versus-Noul comparisons ran on 300 development cases. A newly frozen 3,000-case holdout comparison was stopped at 961 completed paired cases per user request; no tested method met both target metrics in the interim results.
+
+**Current application policy:** Streamlit uses Jev's direct Choice label as an experimental
+advisory result. The fresh 961-case comparison gives the best recall among the three tested
+methods (9.2%), while accuracy is 84.2%, below the 85% floor. All results route to a human;
+Choice probabilities are not calibrated fraud probabilities. This is an application choice,
+not a claim that the target has been achieved or that the partial evaluation is final.
 
 **Owner:** Review Trust Agent project
 
@@ -20,7 +26,7 @@ Given a review and the same evidence available to the current system, Jev can in
 
 1. The local evidence pipeline gathers reviewer history, business trend, and text-similarity evidence using only reviews dated before the target review.
 2. A Jev adapter receives the review and those evidence outputs. It does not receive the ground-truth `filtered` label, review ID-derived labels, or other evaluation-only data.
-3. Jev returns a typed `filtered` / `recommended` decision. Confidence/probability is treated as an unvalidated model output.
+3. Jev Choice returns a typed `filtered` / `recommended` decision. Confidence/probability is treated as an unvalidated model output.
 4. The application maps the decision to a review/queue outcome through the project's own decision policy. Jev does not directly remove or suppress reviews during this experiment.
 
 If Jev's API contract cannot support this input/output shape, revise the adapter contract before running; do not silently change the experiment mid-run.
@@ -75,6 +81,39 @@ Four paired 100-call iterations used the frozen 50-review tuning partition (7 fi
 | v5 | Require one strong or two corroborating moderate signals | 0/7 (0%) | 82% | False positives fell to 2, but all positives were missed; rejected |
 
 No prompt-only candidate met the earlier recall/accuracy targets. On the completed development and final comparisons, the decomposed Jev workflow failed the revised joint target of ≥20% recall and ≥85% accuracy. Consider adding a supervised model using YelpZip graph and activity features, with Jev limited to structured evidence extraction, then evaluate the revised approach using a new untouched final set.
+
+### Choice vs. Score comparison — 2026-10-18
+
+- Compared Jev's binary **Choice** output with an ordinal **Score** rubric on the first 300 reviews in the frozen development partition (40 filtered labels).
+- Both questions were sent together with identical review/evidence input in one request per review; 300/300 requests completed.
+- Score decision cutoff was fixed at 0.50 before evaluation. No threshold search was performed.
+- Choice: 5/40 recall (12.5%), 85.0% accuracy, 33.3% precision, 5.0% queue rate.
+- Score: 5/40 recall (12.5%), 81.7% accuracy, 20.0% precision, 8.3% queue rate.
+- Choice is the better candidate on this subset: equal recall with fewer false positives and higher accuracy. It only reaches the 85% floor here and misses the ≥20% recall goal.
+- This is development-only evidence. It does not update the frozen 3,000-review final result or establish generalization. Do not tune a Score threshold on these results and present it as holdout performance.
+- Estimated cumulative project spend after the run: $0.3658. Raw records and summary are in the Git-ignored `data/yelpzip_eval/runs/dev-choice-score-300-v1.*` artifacts.
+
+### Choice vs. Noul comparison — 2026-10-18
+
+- Queried Choice, direct overall-risk Noul, and business-burst Noul together for the same 300 development cases (40 filtered labels); 300/300 paired calls completed.
+- Decision rules were fixed before evaluation: Choice uses Jev's label; direct Noul flags at 0.50; the existing business non-burst policy flags when `1 − P(business_burst) ≥ 0.98`.
+- Choice: 5/40 recall (12.5%), 85.3% accuracy, 35.7% precision, 4.7% queue rate.
+- Direct overall-risk Noul: 2/40 recall (5.0%), 85.7% accuracy, 28.6% precision, 2.3% queue rate.
+- Business non-burst Noul policy: 2/40 recall (5.0%), 83.0% accuracy, 13.3% precision, 5.0% queue rate.
+- On this subset Choice recovered three additional filtered reviews versus direct Noul, at four additional false positives and 0.3 percentage points lower accuracy. Results remain exploratory and their recall intervals overlap.
+- The Choice result differed by one false positive from its earlier Choice-vs-Score run, despite the same model, inputs, and dataset. Retain the paired Choice result in this comparison and treat the discrepancy as observed run-to-run variation.
+- Estimated cumulative spend after the run: $0.3802. Artifacts: Git-ignored `data/yelpzip_eval/runs/dev-choice-noul-300-v1.*`.
+
+### Fresh holdout — interim stop at 961 paired cases — 2026-10-18
+
+This partial paired result informed the current dashboard's Choice method. It remains
+incomplete and is not the completed full-scale evaluation.
+
+- Froze a new stratified 3,000-review set (397 filtered, 2,603 recommended) after excluding IDs found in previous data examples, CSV manifests, JSON/JSONL run artifacts, and documented examples. Recorded the manifest hash and source-file hashes before any Jev calls; labels remain separate from inference inputs.
+- Choice and two Noul questions were queried together on identical evidence. Frozen rules: Jev Choice label; direct overall-risk Noul ≥0.50; business non-burst `1 − P(business_burst) ≥0.98`.
+- 961 paired cases completed (119 filtered labels). Choice: 9.2% recall / 84.2% accuracy; direct Noul: 4.2% / 85.7%; business non-burst: 8.4% / 83.6%. Recall confidence intervals overlap; full metrics are in `jev-recall-experiment-report.md`.
+- Per user instruction, stopped before the planned 3,000 cases; 2,039 were not evaluated. Treat this partial holdout as consumed for method and threshold tuning; it is not a completed final evaluation.
+- Estimated cumulative project spend: $0.427, below the $5 cap. Run artifacts and frozen manifests are Git-ignored under `data/yelpzip_eval/`.
 
 ### Before live calls
 
