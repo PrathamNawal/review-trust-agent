@@ -20,15 +20,18 @@ def render_overview(goto):
     c1, c2, c3 = st.columns(3)
     render_hero_stat(c1, "A trained human's accuracy", "56%",
                      "16-review golden-set benchmark, blind labeling — matches published literature (50-65%).")
-    render_hero_stat(c2, "The agent's accuracy", "84%",
-                     "50-review batch. Sounds better — but read the next number.", tone="warning")
-    render_hero_stat(c3, "...but its fraud recall", "0%",
-                     "Missed every actually-fake review in that batch — the central finding of this project.",
-                     tone="danger")
+    render_hero_stat(c2, "Original agent accuracy", "84%",
+                     "50-review project batch; see the original recall result below.", tone="warning")
+    render_hero_stat(c3, "Best Jev recall", "7.8%",
+                     "31/397 filtered reviews found on a separate, locked 3,000-review holdout.",
+                     tone="warning")
 
     st.info(
-        "That gap — high accuracy, zero recall on fraud — is the whole point of this dashboard. "
-        "It's not a solved problem being demoed; it's an open one being made inspectable."
+        "These are results from different evaluations: 0% was the original dashboard agent's "
+        "50-review batch; 7.8% is the best Jev result on a separate 3,000-review holdout. "
+        "Jev was evaluated as a standalone experiment, not as the dashboard's active agent. "
+        "It improved recall over Jev v1 (4.8%) but reached 83.2% accuracy, below the 85% target. "
+        "The Jev holdout is consumed; neither result supports automatic removal."
     )
     st.caption(
         "Not sure where to start? Use the **\"I am a...\"** picker in the sidebar to jump "

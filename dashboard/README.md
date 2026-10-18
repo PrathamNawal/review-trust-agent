@@ -52,7 +52,7 @@ The app is a guided funnel, numbered in the order a first-time visitor should cl
 
 | Page | What it does |
 |---|---|
-| **1. What is this?** | The hook: the problem statement, three headline numbers (56% human accuracy, 84% agent accuracy, 0% agent fraud recall), and a map of what you can do here |
+| **1. What is this?** | The hook: original dashboard metrics (56% human accuracy, 84% accuracy, 0% recall on the initial 50-review batch), the best Jev result (7.8% recall on a separate 3,000-review holdout), and a map of what you can do here |
 | **2. How it works** | Plain-language walkthrough of the evidence loop and the three tools, before any interaction is asked of you |
 | **3. Try it — Human** | Act as the analyst — real reviews, real evidence, blind judgment, scored live. Ends with a CTA to see the agent judge the *same* review |
 | **4. Try it — Agent** | The real agent investigates live: real tool calls, real routing decision (auto-remove / queue / ignore), explicit low-confidence fallback. Inline 3-step guide to getting a free API key if none is set |

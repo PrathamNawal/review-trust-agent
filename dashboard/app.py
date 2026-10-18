@@ -152,7 +152,7 @@ page = st.sidebar.radio("View", NAV_OPTIONS, key="nav")
 st.sidebar.divider()
 st.sidebar.caption("API KEYS")
 with st.sidebar.expander("🔑 Add your keys", expanded=False):
-    st.caption("Only needed for live agent investigations (steps 4–6). Session only, never written to disk.")
+    st.caption("Keys are entered for this running app and are not written to project files. Do not paste API keys into chat or source code.")
     for env_name, label in [("GROQ_API_KEY", "Groq"), ("OPENROUTER_API_KEY", "OpenRouter"),
                              ("GOOGLE_API_KEY", "Gemini"), ("ANTHROPIC_API_KEY", "Claude")]:
         current = os.environ.get(env_name, "")

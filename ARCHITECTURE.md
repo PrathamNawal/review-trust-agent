@@ -36,6 +36,7 @@ The UI reads the 5,000-review sample in `data/sample.csv`. Evidence lookups use 
 - **Prompt and settings:** prompt/config versions live in `dashboard/config_store.py`. The default prompt is sourced from `scripts/tool_schemas.py`; each deployed version preserves its own prompt and architecture selection.
 - **Metrics:** add calculations in `dashboard/metrics.py`, aggregate them in `dashboard/mlflow_tracking.py`, and expose them in the Track Performance view in `dashboard/pages/performance.py`.
 - **Evaluation:** `dashboard/evaluation.py` evaluates and compares configurations on identical fixed examples; the Configuration view can run an optional baseline/candidate review before deployment. These evaluations are live calls and do not write to MLflow.
+- **Jev experiment adapter:** `dashboard/jev_model.py` calls TypeSafe System One using the documented `api.typesafe.ai` endpoint and `TYPESAFE_API_KEY`. `scripts/run_jev_experiment.py` runs the standalone, repeatable comparison and saves local Git-ignored row-level reports. This is an experiment path, not the active dashboard agent architecture.
 - **Evidence:** implement the evidence function in `scripts/tools.py`, define its model-facing contract and register its handler in `scripts/tool_schemas.py`. The Agno adapter binds model-callable functions in `dashboard/live_agent.py`.
 
 ## Guardrails for changes
@@ -50,6 +51,7 @@ The UI reads the 5,000-review sample in `data/sample.csv`. Evidence lookups use 
 
 - Add a candidate-versus-baseline evaluation workflow in the UI, using fixed review IDs and a review gate before deployment.
 - Add durable experiment records so evaluation results survive Streamlit session resets and can be linked to deployed versions.
+- Jev's paired 3,000-review holdout comparison is complete: decomposed workflow recall 7.8% and accuracy 83.2%, versus v1 at 4.8% and 84.2%. It did not meet the ≥20% recall / ≥85% accuracy target. The holdout is consumed; any Agno comparison or revised candidate needs a new untouched evaluation set. See `experiments/jev-recall-experiment-report.md`.
 - Persist evaluation records and support repeatable comparisons across multiple candidate versions; the current UI can evaluate up to the full 40-review golden set and reports recall-focused metrics.
 - Add tests around evidence self-exclusion, tool outputs, config migration, architecture adapters, and evaluation aggregation.
 - Keep config/run storage behind small repository interfaces so local files can later be replaced without changing the UI or agent.

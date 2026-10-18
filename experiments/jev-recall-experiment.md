@@ -1,7 +1,9 @@
 # Jev recall experiment
 
-**Status:** Four paired tuning iterations completed; no candidate meets both target metrics; evidence redesign needed before development selection  
-**Owner:** Review Trust Agent project  
+**Status:** Paired tuning, development selection, and locked final evaluation complete; no candidate met both target metrics.
+
+**Owner:** Review Trust Agent project
+
 **Goal:** Determine whether Jev improves detection of Yelp-filtered reviews when used as a structured decision layer alongside the current evidence-gathering agent.
 
 ## Why this experiment exists
@@ -92,7 +94,8 @@ No prompt-only candidate met the earlier recall/accuracy targets. On the complet
 
 ### Metrics
 
-Primary: filtered-class recall. Current accuracy floor: at least 85%. Earlier runs used 84% or 80%; these are historical guardrails.  
+Primary: filtered-class recall. Current accuracy floor: at least 85%. Earlier runs used 84% or 80%; these are historical guardrails.
+
 Guardrails: precision, false-positive rate/specificity, F1, balanced accuracy, completion/error rate, human-review/queue rate, latency, and API cost. Report confusion-matrix counts and confidence intervals where sample size permits. Accuracy alone is not a success criterion on this imbalanced dataset.
 
 ## API key handling

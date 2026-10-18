@@ -48,10 +48,10 @@ the confidently-genuine share and auto-flag the confidently-fake share of that a
 queue — leaving only the genuinely uncertain cases for a human — even a conservative
 30% reduction in human-reviewed volume is worth **~$960K/year** in this illustrative
 model, before counting the harder-to-quantify value of faster resolution and a visible
-reasoning trail for appeals. **The honest finding in Section 9 is that this project's
-current agent is not yet ready to safely capture that value** — its recall on real fraud
-was 0% in the one real batch tested — which is exactly the kind of result this
-evaluation approach exists to surface before a costly production rollout, not after.
+reasoning trail for appeals. **The current dashboard agent is not ready to safely capture
+that value.** Its original batch had 0% recall; a separate Jev experiment later reached
+7.8% recall but fell below the accuracy target and was not compared directly with the
+active dashboard system.
 
 ## 3. Hypothesis and Strategic Fit
 
@@ -226,35 +226,38 @@ as a guided six-step flow:
    by config version, with Wilson-score confidence intervals (appropriate at the small-n
    a live dashboard session actually produces) and a plain-language before/after delta.
 
-**The headline real result, reported exactly as found:** a 50-review manual batch
+**Original dashboard result:** a 50-review manual batch
 (reasoning done to the same discipline as the automated agent would apply) scored **84%
 accuracy** — but **0% recall** on the 6 actually-fake reviews in that batch, missing every
 one, while also producing 2 false positives. On this class-imbalanced task (~13% fraud
 rate), a trivial "always guess genuine" baseline scores 88% accuracy — *higher* than the
 careful, evidence-weighing approach — while doing zero actual work. This is the central,
-humbling finding of the project, not a footnote: **high accuracy without recall on the
-class that matters is a failure, not a success**, and it's exactly what a proper eval
-(rather than an accuracy-only sanity check) exists to catch before a costly rollout.
+project finding: **high accuracy without recall on the class that matters is a failure, not
+a success**. This is the original dashboard evaluation, separate from the Jev results below.
 
-**What's not yet done, stated plainly:** a full statistically powered run (hundreds of
-reviews, held-out test set, confidence intervals on precision/recall specifically) has
-not been executed — the infrastructure for it (`scripts/eval_runner.py`, a fixed
-dev/test split) is built and ready, gated only on sustained API access to run it at
-volume.
+**Jev large-scale result:** a paired evaluation on a locked 3,000-review YelpZip
+holdout (397 filtered labels) completed on 2026-10-18. At threshold 0.98, decomposed
+Jev reached 7.8% recall (31/397; 95% Wilson CI 5.6–10.9%) and 83.2% accuracy
+(81.9–84.5%). Jev v1 reached 4.8% recall (19/397; 3.1–7.4%) and 84.2% accuracy
+(82.8–85.4%). The candidate found 12 more positives but generated 40 more false
+positives. Neither version met the target of ≥20% recall and ≥85% accuracy. This is a
+Jev-vs-Jev prompt/workflow comparison, not a controlled comparison against the active
+Agno dashboard system. The holdout is consumed; future candidates need a new untouched
+test set. Full results and limitations: [Jev execution report](experiments/jev-recall-experiment-report.md).
 
 ## 10. Risks and Tradeoffs (Top 3)
 
-1. **Recall on real fraud is the unproven, load-bearing risk — and by this project's own
-   pre-registered bar, v1 does not pass it.** Before running any real batch, the success
-   criteria were fixed in advance: 100% schema validity, and recall on the fraud class
-   clearing the trivial majority-class floor. The one real batch result cleared the first
-   bar and missed the second — 0% recall on actual fraud despite a headline-looking 84%
-   accuracy. Stated plainly, not softened: **v1 does not yet meet the bar it was set
-   against, regardless of how good the headline number looks.** Until a full-scale run
-   confirms this is fixable (the likely root cause — over-requiring a business-side spike
-   to corroborate a thin account, per the failure analysis — is concrete and actionable,
-   not vague), **this system is not ready to be trusted with any real autonomy**,
-   regardless of how the dashboard's autonomy policy is configured.
+1. **Recall on the Yelp filtered reference class remains low.** The original 50-review
+   project batch had 0% recall on six positives. The later Jev holdout measured 7.8%
+   recall at 83.2% accuracy for the decomposed candidate, versus 4.8% and 84.2% for Jev
+   v1. Neither reached the ≥20% recall / ≥85% accuracy target. These are benchmark-label
+   results, not verified real-fraud rates. Jev is not ready for autonomous action; the
+   final holdout is consumed, so further development needs a new untouched evaluation.
+   **The agent is not ready to be trusted with real autonomy.**
+
+   The Jev run compared Jev with itself, not with the active Agno dashboard system.
+   The dataset's filtered label is also only a benchmark reference, not independently
+   verified fraud ground truth.
 
 2. **The ground truth itself has a ceiling on how much it can validate.** Every accuracy
    number in this project measures agreement with Yelp's own undisclosed filter — not

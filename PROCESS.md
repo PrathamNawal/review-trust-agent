@@ -13,6 +13,25 @@ sign-off before they go further. Anyone — a new team member, a reviewer, you i
 months — should be able to read this and understand not just *what* was built, but
 *who decided what, and why*.
 
+## Jev recall experiment: completed 3,000-review evaluation
+
+On 2026-10-18, a paired Jev v1 versus decomposed-workflow comparison completed on a
+locked 3,000-review YelpZip holdout (397 filtered labels). At threshold 0.98, recall
+was 4.8% (19/397) for v1 and 7.8% (31/397) for the candidate; accuracy was 84.2% and
+83.2%, respectively. The candidate found 12 more positives, with 40 additional false
+positives, and met neither the ≥20% recall nor ≥85% accuracy target. It completed all
+6,000 decisions without errors. The holdout is consumed; do not tune against it. Yelp's
+`filtered` label is a benchmark reference, not verified fraud ground truth. Keep Jev
+experimental; do not enable automatic removal. The earlier 50-review comparison
+(50% recall on 6 positives) remains exploratory and is not the large-scale result.
+
+The TypeSafe REST adapter and runner are in `dashboard/jev_model.py` and
+`scripts/run_jev_experiment.py`. The quickstart's endpoint and `TYPESAFE_API_KEY`
+were used for the smoke and full runs. See [the execution report](experiments/jev-recall-experiment-report.md)
+for the full metrics, limitations, and artifacts. A future Agno comparison requires a
+new untouched holdout; this Jev-vs-Jev study does not establish gains over Agno. Rotate
+the key shared in chat and use only a local environment variable.
+
 ---
 
 ## 1. Roles: What Gets Executed vs. What Needs a PM's Sign-Off
@@ -36,6 +55,10 @@ you before the next full eval run.
 ---
 
 ## 2. Build Stage Map
+
+The table below is the original project build plan and records the status at that time;
+it is not the current status of the separate Jev experiment. The completed Jev evaluation
+is summarized at the top of this document and in the scorecard/report.
 
 Each stage of [v0-plan.md](v0-plan.md)'s 9-step sequence, with status, where its
 artifacts live, and — critically — whether it contains a Category 1/2/3 decision that

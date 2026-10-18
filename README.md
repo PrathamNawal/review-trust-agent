@@ -3,17 +3,21 @@
 An AI agent that investigates whether a Yelp review is fake — and a live dashboard
 that lets you second-guess it, tweak its behavior, and see the tradeoffs.
 
-![The dashboard's hero page: real 56%/84%/0% headline stats and a 6-step guided tour](assets/dashboard-hero.png)
+![Historical dashboard screenshot showing the original agent result; the separate Jev result is summarized below](assets/dashboard-hero.png)
 
 **[Try the live dashboard →](https://review-trust-agent.streamlit.app/)**
 
-**The headline finding, reported exactly as found:** in a 50-review real evaluation
-batch, the agent scored 84% accuracy — but **0% recall on actual fraud**, missing every
-one of the 6 real fake reviews in that batch. On this class-imbalanced task, a trivial
+**Original dashboard agent:** in a 50-review evaluation batch, it scored 84% accuracy
+but **0% recall** on the six Yelp-filtered examples. On this class-imbalanced task, a trivial
 "always guess genuine" baseline scores 88% — *higher* than the careful, evidence-weighing
-agent, while doing zero actual work. That gap is the whole point of this project: this is
-a rigorously evaluated system with a real, actionable failure mode, not a polished demo
-of a solved problem.
+agent, while doing zero actual work. This is the original dashboard result, not the later
+Jev experiment.
+
+**Best Jev result:** the decomposed Jev workflow reached **7.8% recall** (31/397) and
+83.2% accuracy on a separate locked 3,000-review holdout, versus 4.8% recall and 84.2%
+accuracy for Jev v1. The recall improved, but it missed the 85% accuracy target and was
+not compared directly with the active dashboard agent. Jev remains experimental; see the
+[full results and limitations](experiments/jev-recall-experiment-report.md).
 
 **[Read the full case study →](PRODUCT_CASE_STUDY.md)** — business problem, impact,
 hypothesis, users & JTBD, scope & tradeoffs, evaluation plan, top risks, plus three real
@@ -21,6 +25,11 @@ hard-case walkthroughs.
 
 **[Read the architecture & modularization guide →](ARCHITECTURE.md)** — current system
 boundaries, shared contracts, experiment plug-in points, and the safe migration plan.
+
+**[Review the Jev recall experiment plan →](experiments/jev-recall-experiment.md)** —
+design, evaluation safeguards, key handling, and run log.
+**[Read the Jev experiment report →](experiments/jev-recall-experiment-report.md)** —
+3,000-review final results, prompt and development tuning, limitations, and next steps.
 
 This dashboard is a real Streamlit app running real Python — not a mockup. Every
 number, chart, and control is wired to a real computation (see "What's real vs. scoped
@@ -52,7 +61,7 @@ down" below).
   which has an ephemeral filesystem. New judgments you log and new config
   versions you deploy will reset if the app restarts (goes to sleep after
   inactivity, or redeploys). The seeded historical baselines (56% human
-  accuracy, 84% agent accuracy from the original project) always reload on
+  accuracy, 84% original agent accuracy from the original project) always reload on
   restart since they come from the checked-in CSVs.
 
 ## Run it locally instead
