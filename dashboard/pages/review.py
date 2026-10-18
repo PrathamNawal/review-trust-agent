@@ -1,5 +1,6 @@
 """Human-review and live-agent review pages."""
 
+import html
 import os
 
 import streamlit as st
@@ -83,12 +84,13 @@ def render_human_review(sample, toolbox, active_config, mlflow_tracking,
 
 def render_agent_review(sample, active_config, provider_presets, judged_review_ids,
                         investigate_and_log, mark_step_done, goto):
-    st.title("Try it — the real agent, live")
-    st.caption(f"Running against the active config: **{active_config['version']}** — "
-               f"{active_config.get('architecture', 'agno')} · "
-               f"{active_config['provider']}/{active_config['model']}")
-
     is_jev = active_config.get("architecture") == "jev"
+    st.title("Investigate a review")
+    if is_jev:
+        st.caption("Choose a Yelp review and inspect Jev's advisory label. Every result stays in human review.")
+    else:
+        st.caption("Choose a Yelp review and inspect the evidence behind the agent's decision.")
+
     key_env = "TYPESAFE_API_KEY" if is_jev else provider_presets[active_config["provider"]]["api_key_env"]
     key_present = get_typesafe_api_key() if is_jev else os.environ.get(key_env)
     if not key_present:
@@ -100,19 +102,15 @@ def render_agent_review(sample, active_config, provider_presets, judged_review_i
             "TYPESAFE_API_KEY": "https://docs.typesafe.ai/introduction/quickstart",
         }
         provider_name = "Jev Model (TypeSafe)" if is_jev else active_config["provider"].title()
-        st.warning(
-            f"**No API key set for {provider_name}.** Three steps to run a live investigation:\n\n"
-            f"1. Get a free key → [{provider_urls.get(key_env, 'provider console')}]({provider_urls.get(key_env, '#')}) (about 30 seconds)\n"
-            f"2. Paste it into the **{provider_name}** field in the sidebar\n"
-            f"3. Come back here and click **Investigate live**"
-        )
+        st.warning(f"Add a **{provider_name} API key** under **API Keys** in the sidebar to run an investigation.")
+        st.caption(f"[Get a {provider_name} key ↗]({provider_urls.get(key_env, '#')})")
 
     already_judged = judged_review_ids("agent", active_config["version"])
     pool = sample[~sample["review_id"].isin(already_judged)]
     handoff_id = st.session_state.pop("handoff_review_id", None)
     if handoff_id is not None and handoff_id in sample["review_id"].values:
         st.session_state["agent_review_id"] = int(handoff_id)
-        st.caption(f"↪ Continuing from your Human Review judgment on review #{handoff_id}")
+        st.caption(f"Continuing from your human review · #{handoff_id}")
     elif "agent_review_id" not in st.session_state or st.session_state["agent_review_id"] not in pool["review_id"].values:
         if not pool.empty:
             st.session_state["agent_review_id"] = int(pool.sample(1)["review_id"].iloc[0])
@@ -121,22 +119,27 @@ def render_agent_review(sample, active_config, provider_presets, judged_review_i
         st.success("The agent has investigated every review in the sample under this config version!")
     else:
         options = sample["review_id"].tolist()
-        col_pick, col_random = st.columns([3, 1])
+        col_pick, col_random = st.columns([4, 1])
         with col_pick:
-            review_id = st.selectbox("Review", options,
+            review_id = st.selectbox("Review ID", options,
                                       index=options.index(st.session_state["agent_review_id"])
                                       if st.session_state["agent_review_id"] in options else 0)
         with col_random:
-            if st.button("🎲 Random review", key="agent_random"):
+            if st.button("Random review", key="agent_random"):
                 chosen_pool = pool if not pool.empty else sample
                 st.session_state["agent_review_id"] = int(chosen_pool.sample(1)["review_id"].iloc[0])
                 st.rerun()
 
         row = sample[sample["review_id"] == review_id].iloc[0]
-        st.markdown(f"**Rating:** {'⭐' * int(row['rating'])} &nbsp;&nbsp; **Date:** {row['date']}")
-        st.info(row["review_text"])
+        with st.container(border=True):
+            st.caption(f"REVIEW #{review_id}  ·  ⭐ {int(row['rating'])}/5  ·  {row['date']}")
+            review_text = html.escape(str(row["review_text"]))
+            st.markdown(
+                f'<div style="max-width:82ch; color:#344054; font-size:1rem; line-height:1.75">{review_text}</div>',
+                unsafe_allow_html=True,
+            )
 
-        if st.button("▶ Investigate live", type="primary"):
+        if st.button("Investigate review", type="primary", disabled=not key_present):
             review = {
                 "review_id": int(review_id), "user_id": str(int(row["user_id"])),
                 "prod_id": str(int(row["prod_id"])), "rating": float(row["rating"]),
@@ -220,6 +223,4 @@ def render_agent_review(sample, active_config, provider_presets, judged_review_i
             elif final_result:
                 st.warning(f"No judgment reached: {final_result.get('reasoning')}")
 
-        st.divider()
-        if st.button("See the Analyst Queue review this case →"):
-            goto("5. Analyst Queue")
+        st.caption("Completed investigations are available in the Analyst Queue.")
