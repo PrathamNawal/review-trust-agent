@@ -29,7 +29,8 @@ Opens at `http://localhost:8501`. Stop with `Ctrl+C`.
 
 Enter them in the sidebar (session-only, never written to disk) or set as
 environment variables before launching: `GROQ_API_KEY`, `OPENROUTER_API_KEY`,
-`GOOGLE_API_KEY`, `ANTHROPIC_API_KEY`.
+`GOOGLE_API_KEY`, `ANTHROPIC_API_KEY`; Jev architecture also accepts
+`TYPESAFE_API_KEY` through the sidebar or Streamlit secrets.
 
 ## Personas
 
@@ -55,10 +56,10 @@ The app is a guided funnel, numbered in the order a first-time visitor should cl
 | **1. What is this?** | The hook: original dashboard metrics (56% human accuracy, 84% accuracy, 0% recall on the initial 50-review batch), the best Jev result (7.8% recall on a separate 3,000-review holdout), and a map of what you can do here |
 | **2. How it works** | Plain-language walkthrough of the evidence loop and the three tools, before any interaction is asked of you |
 | **3. Try it — Human** | Act as the analyst — real reviews, real evidence, blind judgment, scored live. Ends with a CTA to see the agent judge the *same* review |
-| **4. Try it — Agent** | The real agent investigates live: real tool calls, real routing decision (auto-remove / queue / ignore), explicit low-confidence fallback. Inline 3-step guide to getting a free API key if none is set |
+| **4. Try it — Agent** | The active Agno or experimental Jev architecture investigates live and shows evidence and routing. Jev scores are uncalibrated and always go to the human queue. |
 | **5. Analyst Queue** | The real analyst workflow: the agent's already-computed verdict, confidence, and evidence trail for a case, with Accept / Override / Escalate — every decision logged, so agreement and override rate become real metrics instead of silent disagreement. Appealed cases (from page 6) surface here first. |
 | **6. Check My Review** | As the reviewer/business behind a review, see the real routing decision and plain-language reasoning — ground truth is deliberately not shown, since a real reviewer wouldn't know it either — and appeal an auto-removal, which files a real, trackable case into the Analyst Queue. |
-| **7. Play — Tweak the Agent** | Edit the system prompt, temperature, provider, model, and auto-remove threshold — or click a one-click "quick experiment" (more cautious / faster & cheaper / try Claude) to pre-fill the form. One click deploys a new version with an auto-filled diff reason. Roll back to any past version. |
+| **7. Play — Tweak the Agent** | Jev is the default experimental architecture; Agno remains selectable. Jev uses its frozen 0.98 policy and always sends decisions to human review. Evaluate candidates before deployment; roll back to any prior version at any time. |
 | **8. Track Performance** | Leads with a plain-language before/after delta ("your last config change moved accuracy from X% to Y%"), then the full MLflow-backed breakdown — accuracy, precision, recall, confidence intervals, avg turns |
 
 ## Resetting to a clean state

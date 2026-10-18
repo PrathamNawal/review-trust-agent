@@ -17,6 +17,8 @@ if PROJECT_ROOT not in sys.path:
 
 from dashboard import config_store, mlflow_tracking  # noqa: E402
 from dashboard.live_agent import get_toolbox, PROVIDER_PRESETS  # noqa: E402
+import dashboard.jev_agent  # noqa: E402,F401 -- registers the Jev architecture
+from dashboard.jev_agent import get_typesafe_api_key  # noqa: E402
 from dashboard.agent_service import investigate_and_log  # noqa: E402
 from dashboard.ui_components import (
     inject_css,
@@ -154,8 +156,12 @@ st.sidebar.caption("API KEYS")
 with st.sidebar.expander("🔑 Add your keys", expanded=False):
     st.caption("Keys are entered for this running app and are not written to project files. Do not paste API keys into chat or source code.")
     for env_name, label in [("GROQ_API_KEY", "Groq"), ("OPENROUTER_API_KEY", "OpenRouter"),
-                             ("GOOGLE_API_KEY", "Gemini"), ("ANTHROPIC_API_KEY", "Claude")]:
-        current = os.environ.get(env_name, "")
+                             ("GOOGLE_API_KEY", "Gemini"), ("ANTHROPIC_API_KEY", "Claude"),
+                             ("TYPESAFE_API_KEY", "Jev Model (TypeSafe)")]:
+        if env_name == "TYPESAFE_API_KEY":
+            current = get_typesafe_api_key() or ""
+        else:
+            current = os.environ.get(env_name, "")
         entered = st.text_input(label, value=current, type="password", key=f"key_{env_name}")
         if entered:
             os.environ[env_name] = entered

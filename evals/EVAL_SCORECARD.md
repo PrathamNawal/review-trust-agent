@@ -45,6 +45,9 @@ Claude 0/6, 84%) is preliminary and not a controlled Agno baseline.
 ## Current decision and next evaluation
 
 - Keep Jev experimental; do not use it for automatic removal.
+- Jev is integrated as the Streamlit default experimental architecture; its uncalibrated
+  decisions always route to a human. The dashboard uses a trimmed evidence index, so the
+  3,000-review result does not predict its live metrics. Agno remains selectable.
 - The 3,000-review final holdout is consumed. Do not change a prompt and re-score it as
   confirmatory evidence.
 - Investigate supervised YelpZip graph/activity features; consider Jev for structured

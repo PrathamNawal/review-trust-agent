@@ -4,6 +4,7 @@ import os
 
 import streamlit as st
 
+from dashboard.jev_agent import get_typesafe_api_key
 from dashboard.agent_service import investigate_and_log
 from dashboard.decision_policy import compute_routing, ROUTING_LABELS, ROUTING_TONE
 from dashboard.ui_components import (
@@ -84,20 +85,25 @@ def render_agent_review(sample, active_config, provider_presets, judged_review_i
                         investigate_and_log, mark_step_done, goto):
     st.title("Try it — the real agent, live")
     st.caption(f"Running against the active config: **{active_config['version']}** — "
-               f"{active_config['provider']}/{active_config['model']}, temperature {active_config['temperature']}")
+               f"{active_config.get('architecture', 'agno')} · "
+               f"{active_config['provider']}/{active_config['model']}")
 
-    key_env = provider_presets[active_config["provider"]]["api_key_env"]
-    if not os.environ.get(key_env):
+    is_jev = active_config.get("architecture") == "jev"
+    key_env = "TYPESAFE_API_KEY" if is_jev else provider_presets[active_config["provider"]]["api_key_env"]
+    key_present = get_typesafe_api_key() if is_jev else os.environ.get(key_env)
+    if not key_present:
         provider_urls = {
             "GROQ_API_KEY": "https://console.groq.com/keys",
             "OPENROUTER_API_KEY": "https://openrouter.ai/keys",
             "GOOGLE_API_KEY": "https://aistudio.google.com/apikey",
             "ANTHROPIC_API_KEY": "https://console.anthropic.com/settings/keys",
+            "TYPESAFE_API_KEY": "https://docs.typesafe.ai/introduction/quickstart",
         }
+        provider_name = "Jev Model (TypeSafe)" if is_jev else active_config["provider"].title()
         st.warning(
-            f"**No API key set for {active_config['provider']}.** Three steps to run a live investigation:\n\n"
+            f"**No API key set for {provider_name}.** Three steps to run a live investigation:\n\n"
             f"1. Get a free key → [{provider_urls.get(key_env, 'provider console')}]({provider_urls.get(key_env, '#')}) (about 30 seconds)\n"
-            f"2. Paste it into the **{active_config['provider'].title()}** field in the sidebar\n"
+            f"2. Paste it into the **{provider_name}** field in the sidebar\n"
             f"3. Come back here and click **Investigate live**"
         )
 
@@ -159,20 +165,29 @@ def render_agent_review(sample, active_config, provider_presets, judged_review_i
                 confidence = final_result["confidence"]
                 true_filtered = bool(row["filtered"])
                 routing = compute_routing(predicted_filtered, confidence, threshold)
+                confidence_display = (
+                    f"{confidence:.0%} confidence" if confidence is not None else "confidence not calibrated"
+                )
 
                 st.divider()
                 verdict_col, routing_col = st.columns(2)
                 with verdict_col:
                     st.metric("Verdict", "Likely fake" if predicted_filtered else "Likely genuine",
-                              f"{confidence:.0%} confidence")
+                              confidence_display)
                 with routing_col:
                     st.caption("Routing decision")
                     render_badge(ROUTING_LABELS[routing], ROUTING_TONE[routing])
                     if routing == "queue":
-                        st.caption("⚠️ Confidence fell below the threshold — the policy falls back to a human, "
-                                   "exactly as designed, rather than guessing.")
+                        if confidence is None:
+                            st.caption("⚠️ This model's output is not calibrated for autonomous routing; a human must review it.")
+                        else:
+                            st.caption("⚠️ Confidence fell below the threshold — the policy falls back to a human, "
+                                       "exactly as designed, rather than guessing.")
                 st.markdown(f"**Primary signal:** {final_result['primary_signal']}")
                 st.markdown(f"**Reasoning:** {final_result['reasoning']}")
+                if final_result.get("jev_probabilities"):
+                    st.caption("Jev dimension outputs (uncalibrated probabilities)")
+                    st.json(final_result["jev_probabilities"])
 
                 correct = predicted_filtered == true_filtered
                 if st.button("Reveal Yelp's actual answer"):

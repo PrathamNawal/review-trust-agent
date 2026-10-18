@@ -31,12 +31,12 @@ The UI reads the 5,000-review sample in `data/sample.csv`. Evidence lookups use 
 
 ## Current plug-in points
 
-- **Agent architecture:** register a runner in `dashboard/agent_architectures.py`. It receives the shared review/config contract and yields trace events. `agno` is the only registered implementation today.
+- **Agent architecture:** register a runner in `dashboard/agent_architectures.py`. It receives the shared review/config contract and yields trace events. `agno` and experimental `jev` adapters are registered; Jev is the default, with Agno available for rollback.
 - **Model provider:** add a provider model class and API-key environment variable in `dashboard/providers.py`; orchestration remains in the architecture runner.
 - **Prompt and settings:** prompt/config versions live in `dashboard/config_store.py`. The default prompt is sourced from `scripts/tool_schemas.py`; each deployed version preserves its own prompt and architecture selection.
 - **Metrics:** add calculations in `dashboard/metrics.py`, aggregate them in `dashboard/mlflow_tracking.py`, and expose them in the Track Performance view in `dashboard/pages/performance.py`.
 - **Evaluation:** `dashboard/evaluation.py` evaluates and compares configurations on identical fixed examples; the Configuration view can run an optional baseline/candidate review before deployment. These evaluations are live calls and do not write to MLflow.
-- **Jev experiment adapter:** `dashboard/jev_model.py` calls TypeSafe System One using the documented `api.typesafe.ai` endpoint and `TYPESAFE_API_KEY`. `scripts/run_jev_experiment.py` runs the standalone, repeatable comparison and saves local Git-ignored row-level reports. This is an experiment path, not the active dashboard agent architecture.
+- **Jev adapter:** `dashboard/jev_model.py` calls TypeSafe System One using the documented `api.typesafe.ai` endpoint and `TYPESAFE_API_KEY`; `dashboard/jev_agent.py` registers Jev using the frozen 0.98 decision rule. Jev is the default experimental architecture. Its outputs are uncalibrated and always route to a human. `scripts/run_jev_experiment.py` and `scripts/yelpzip_jev_final.py` provide standalone repeatable evaluations with Git-ignored local reports.
 - **Evidence:** implement the evidence function in `scripts/tools.py`, define its model-facing contract and register its handler in `scripts/tool_schemas.py`. The Agno adapter binds model-callable functions in `dashboard/live_agent.py`.
 
 ## Guardrails for changes

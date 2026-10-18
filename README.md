@@ -16,7 +16,8 @@ Jev experiment.
 **Best Jev result:** the decomposed Jev workflow reached **7.8% recall** (31/397) and
 83.2% accuracy on a separate locked 3,000-review holdout, versus 4.8% recall and 84.2%
 accuracy for Jev v1. The recall improved, but it missed the 85% accuracy target and was
-not compared directly with the active dashboard agent. Jev remains experimental; see the
+not a direct comparison against Agno. Jev is now the default experimental Streamlit
+architecture and Agno remains available; Jev decisions stay in human review. See the
 [full results and limitations](experiments/jev-recall-experiment-report.md).
 
 **[Read the full case study →](PRODUCT_CASE_STUDY.md)** — business problem, impact,

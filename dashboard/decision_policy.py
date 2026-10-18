@@ -11,6 +11,8 @@ ROUTING_TONE = {"auto_remove": "danger", "queue": "warning", "ignore": "safe"}
 
 def compute_routing(predicted_filtered, confidence, threshold):
     """Map an agent judgment to the existing three-tier autonomy policy."""
+    if confidence is None or confidence != confidence:
+        return "queue"
     if predicted_filtered and confidence >= threshold:
         return "auto_remove"
     if not predicted_filtered and confidence >= threshold:

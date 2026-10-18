@@ -32,6 +32,11 @@ for the full metrics, limitations, and artifacts. A future Agno comparison requi
 new untouched holdout; this Jev-vs-Jev study does not establish gains over Agno. Rotate
 the key shared in chat and use only a local environment variable.
 
+Jev is now the default experimental Streamlit architecture; Agno remains selectable in
+**Play — Tweak the Agent**. The dashboard uses its bundled trimmed
+evidence index, so the historical 7.8%/83.2% result is not a forecast of live performance.
+Jev probabilities are uncalibrated; all Jev decisions stay in the human-review queue.
+
 ---
 
 ## 1. Roles: What Gets Executed vs. What Needs a PM's Sign-Off

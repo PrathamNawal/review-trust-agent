@@ -70,14 +70,15 @@ def render_analyst_queue(sample, toolbox, active_config, mlflow_tracking, judged
                     st.rerun()
         else:
             predicted_filtered = agent_judgment["predicted_filtered"]
-            confidence = agent_judgment["confidence"] or 0.0
+            confidence = agent_judgment["confidence"]
             threshold = active_config["confidence_threshold"]
             routing = compute_routing(predicted_filtered, confidence, threshold)
+            confidence_display = f"{confidence:.0%} confidence" if confidence is not None else "confidence not calibrated"
 
             verdict_col, routing_col = st.columns(2)
             with verdict_col:
                 st.metric("Agent's verdict", "Likely fake" if predicted_filtered else "Likely genuine",
-                          f"{confidence:.0%} confidence")
+                          confidence_display)
             with routing_col:
                 st.caption("Agent's routing")
                 render_badge(ROUTING_LABELS[routing], ROUTING_TONE[routing])
@@ -153,14 +154,17 @@ def render_check_my_review(sample, active_config, mlflow_tracking, investigate_a
                 st.rerun()
     else:
         predicted_filtered = agent_judgment["predicted_filtered"]
-        confidence = agent_judgment["confidence"] or 0.0
+        confidence = agent_judgment["confidence"]
         threshold = active_config["confidence_threshold"]
         routing = compute_routing(predicted_filtered, confidence, threshold)
 
         if routing == "auto_remove":
             st.error("🔴 Your review was removed automatically.")
         elif routing == "queue":
-            st.warning("🟡 Your review is flagged and waiting on a human reviewer's decision.")
+            if active_config.get("architecture") == "jev":
+                st.warning("🟡 Jev's result is advisory and waiting for a human reviewer's decision; no automatic action was taken.")
+            else:
+                st.warning("🟡 Your review is flagged and waiting on a human reviewer's decision.")
         else:
             st.success("🟢 Your review is live — no action was taken.")
         st.markdown(f"**Why:** {agent_judgment['reasoning'] or '*(not recorded)*'}")

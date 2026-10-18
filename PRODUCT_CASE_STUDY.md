@@ -243,7 +243,8 @@ Jev reached 7.8% recall (31/397; 95% Wilson CI 5.6–10.9%) and 83.2% accuracy
 positives. Neither version met the target of ≥20% recall and ≥85% accuracy. This is a
 Jev-vs-Jev prompt/workflow comparison, not a controlled comparison against the active
 Agno dashboard system. The holdout is consumed; future candidates need a new untouched
-test set. Full results and limitations: [Jev execution report](experiments/jev-recall-experiment-report.md).
+test set. The study did not directly compare Jev with the Agno implementation. Full results
+and limitations: [Jev execution report](experiments/jev-recall-experiment-report.md).
 
 ## 10. Risks and Tradeoffs (Top 3)
 
@@ -255,7 +256,7 @@ test set. Full results and limitations: [Jev execution report](experiments/jev-r
    final holdout is consumed, so further development needs a new untouched evaluation.
    **The agent is not ready to be trusted with real autonomy.**
 
-   The Jev run compared Jev with itself, not with the active Agno dashboard system.
+   The Jev run compared Jev with itself, not with the Agno implementation.
    The dataset's filtered label is also only a benchmark reference, not independently
    verified fraud ground truth.
 

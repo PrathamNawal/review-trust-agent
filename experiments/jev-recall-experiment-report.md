@@ -68,3 +68,11 @@ Prompt-only tuning did not produce a candidate that met the project targets.
 - Keep Jev experimental; do not use it for automatic removal.
 - The 3,000-review holdout is consumed. Any revised system needs a new untouched final evaluation set.
 - Recommended direction: test a supervised model using YelpZip activity and graph features; use Jev for structured evidence extraction if it adds value.
+
+## Streamlit integration note
+
+The frozen Jev policy is integrated as the Streamlit default experimental architecture.
+It uses the bundled trimmed evidence index rather than the full YelpZip cache used for
+the locked evaluation, so 7.8% recall and 83.2% accuracy are historical benchmark results,
+not expected live dashboard metrics. Jev outputs are uncalibrated and always require human
+review; Agno remains available for rollback.

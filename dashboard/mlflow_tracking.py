@@ -52,7 +52,8 @@ def log_judgment(*, judge_type, config_version, review_id, true_filtered, predic
         mlflow.log_metric("true_filtered", int(true_filtered))
         if predicted_filtered is not None:
             mlflow.log_metric("predicted_filtered", int(predicted_filtered))
-        mlflow.log_metric("confidence", confidence or 0.0)
+        if confidence is not None:
+            mlflow.log_metric("confidence", confidence)
         if turns_used is not None:
             mlflow.log_metric("turns_used", turns_used)
         if n_tool_calls is not None:
@@ -75,9 +76,12 @@ def get_agent_judgment(review_id, config_version):
         return None
     row = sub.iloc[-1]
     predicted = row.get("metrics.predicted_filtered")
+    confidence = row.get("metrics.confidence")
+    if pd.isna(confidence):
+        confidence = None
     return {
         "predicted_filtered": bool(predicted) if pd.notna(predicted) else None,
-        "confidence": row.get("metrics.confidence"),
+        "confidence": confidence,
         "primary_signal": row.get("tags.primary_signal", ""),
         "reasoning": row.get("tags.reasoning", ""),
     }
@@ -98,7 +102,8 @@ def log_analyst_action(*, config_version, review_id, agent_confidence, action, o
             mlflow.set_tag("override_to", str(override_to))
         if reason:
             mlflow.set_tag("reason", str(reason)[:800])
-        mlflow.log_metric("agent_confidence", agent_confidence or 0.0)
+        if agent_confidence is not None:
+            mlflow.log_metric("agent_confidence", agent_confidence)
         mlflow.log_metric("agreed_with_agent", int(action == "accept"))
     if resolves_appeal:
         resolve_appeal(review_id, config_version)
@@ -171,6 +176,12 @@ def summarize_by_group(group_cols=("tags.judge_type", "tags.config_version")):
         )
 
         row = dict(zip(group_cols, keys if isinstance(keys, tuple) else (keys,)))
+        confidence_values = group.get("metrics.confidence")
+        avg_confidence = (
+            round(confidence_values.mean(), 3)
+            if confidence_values is not None and confidence_values.notna().any()
+            else None
+        )
         row.update({
             "n": n,
             "accuracy": round(classification["accuracy"], 3),
@@ -187,7 +198,7 @@ def summarize_by_group(group_cols=("tags.judge_type", "tags.config_version")):
             "false_positive": classification["false_positive"],
             "false_negative": classification["false_negative"],
             "true_negative": classification["true_negative"],
-            "avg_confidence": round(group["metrics.confidence"].mean(), 3),
+            "avg_confidence": avg_confidence,
         })
         if "metrics.turns_used" in group.columns:
             row["avg_turns"] = round(group["metrics.turns_used"].mean(), 2)

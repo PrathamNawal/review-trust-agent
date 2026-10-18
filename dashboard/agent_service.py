@@ -19,6 +19,16 @@ def investigate_and_log(review, config, true_filtered, tracker=None):
         if (event.get("type") == "final"
                 and event.get("predicted_filtered") is not None
                 and not event.get("_incomplete")):
+            extra_tags = {
+                "framework": config.get("architecture", "agno"),
+                "architecture": config.get("architecture", "agno"),
+            }
+            if "confidence_calibrated" in event:
+                extra_tags["confidence_calibrated"] = str(bool(event["confidence_calibrated"])).lower()
+            if event.get("jev_threshold") is not None:
+                extra_tags["decision_threshold"] = str(event["jev_threshold"])
+            if event.get("jev_decision_score") is not None:
+                extra_tags["decision_score"] = str(event["jev_decision_score"])
             tracker.log_judgment(
                 judge_type="agent",
                 config_version=config["version"],
@@ -33,9 +43,6 @@ def investigate_and_log(review, config, true_filtered, tracker=None):
                 provider=config.get("provider"),
                 model=config.get("model"),
                 temperature=config.get("temperature"),
-                extra_tags={
-                    "framework": config.get("architecture", "agno"),
-                    "architecture": config.get("architecture", "agno"),
-                },
+                extra_tags=extra_tags,
             )
         yield event

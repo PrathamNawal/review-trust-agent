@@ -29,7 +29,7 @@ def render_overview(goto):
     st.info(
         "These are results from different evaluations: 0% was the original dashboard agent's "
         "50-review batch; 7.8% is the best Jev result on a separate 3,000-review holdout. "
-        "Jev was evaluated as a standalone experiment, not as the dashboard's active agent. "
+        "The reported Jev benchmark was a standalone experiment; Jev is now the default experimental dashboard architecture. "
         "It improved recall over Jev v1 (4.8%) but reached 83.2% accuracy, below the 85% target. "
         "The Jev holdout is consumed; neither result supports automatic removal."
     )
@@ -45,7 +45,7 @@ def render_overview(goto):
 3. **Try it as the agent** — watch it investigate live, tool call by tool call
 4. **Work the Analyst Queue** — review the agent's already-investigated cases: accept, override, or escalate
 5. **Check a review's status** — as the reviewer/business, see why a decision was made and appeal it
-6. **Play** — edit the prompt, temperature, or model provider and deploy a new version
+6. **Play** — edit Agno settings or choose the experimental Jev workflow and deploy a version
 7. **Track performance** — see exactly how your changes moved accuracy, precision, and recall
 """)
 

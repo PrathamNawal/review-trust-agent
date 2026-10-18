@@ -14,13 +14,13 @@ STORE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "agent_config
 
 DEFAULT_CONFIG = {
     "version": "v0",
-    "architecture": "agno",
+    "architecture": "jev",
     "system_prompt": DEFAULT_SYSTEM_PROMPT,
-    "temperature": 0.2,
-    "provider": "groq",
-    "model": "openai/gpt-oss-120b",
+    "temperature": 0.0,
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
     "confidence_threshold": 0.75,
-    "reason": "Initial baseline configuration.",
+    "reason": "Default to the experimental Jev best-recall workflow; all outputs require human review.",
     "deployed_at": None,
 }
 

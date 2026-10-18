@@ -10,6 +10,15 @@ from dashboard.live_agent import PROVIDER_PRESETS
 
 
 QUICK_EXPERIMENTS = {
+    "jev_best_recall": {
+        "label": "🔎 Use Jev best-recall workflow",
+        "help": "Use the frozen Jev policy that reached 7.8% recall / 83.2% accuracy on a separate 3,000-review holdout. Experimental; all results stay in human review.",
+        "changes": {
+            "architecture": "jev", "provider": "typesafe", "model": "jev-1.13.0",
+            "temperature": 0.0, "confidence_threshold": 0.75,
+            "reason": "Try the frozen Jev best-recall workflow; route every result to a human",
+        },
+    },
     "cautious": {
         "label": "🐢 Make it more cautious",
         "help": "Lower temperature, higher confidence bar before auto-removing.",
@@ -47,33 +56,64 @@ def render_configuration(config_store, active_config, mark_step_done, goto):
         with col:
             if st.button(exp["label"], help=exp["help"], key=f"exp_{key}"):
                 st.session_state["config_prefill"] = exp["changes"]
+                if "architecture" in exp["changes"]:
+                    st.session_state["selected_agent_architecture"] = exp["changes"]["architecture"]
                 st.rerun()
 
     prefill = st.session_state.get("config_prefill", {})
     defaults = {**active_config, **prefill}
 
+    architectures = list(available_architectures()) or ["agno"]
+    current_architecture = defaults.get("architecture", "agno")
+    architecture = st.selectbox(
+        "Agent architecture", architectures,
+        index=architectures.index(current_architecture) if current_architecture in architectures else 0,
+        key="selected_agent_architecture",
+    )
+    if architecture != current_architecture and prefill:
+        st.session_state.pop("config_prefill", None)
+        defaults = {**active_config}
+    if architecture == "agno" and defaults.get("provider") == "typesafe":
+        defaults.update({"provider": "groq", "model": "openai/gpt-oss-120b", "temperature": 0.2})
+    if architecture == "jev":
+        st.info(
+            "Jev uses the frozen best-recall policy: model jev-1.13.0 and "
+            "1 − P(business_burst) ≥ 0.98. On the locked 3,000-review holdout it reached "
+            "7.8% recall and 83.2% accuracy. That result is not a promise for this dashboard's "
+            "different evidence sample. Jev scores are uncalibrated, so every decision is sent "
+            "to the human queue; this architecture cannot auto-remove or auto-clear reviews."
+        )
+
     st.divider()
     with st.form("deploy_form"):
-        system_prompt = st.text_area("System prompt", value=defaults["system_prompt"], height=220)
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            architectures = list(available_architectures()) or ["agno"]
-            current_architecture = defaults.get("architecture", "agno")
-            architecture = st.selectbox("Agent architecture", architectures,
-                                        index=(architectures.index(current_architecture)
-                                               if current_architecture in architectures else 0))
-        with col2:
-            providers = list(PROVIDER_PRESETS)
-            provider = st.selectbox("Provider", providers,
-                                     index=providers.index(defaults["provider"]))
-        with col3:
-            model = st.text_input("Model", value=defaults["model"])
-        with col4:
-            temperature = st.slider("Temperature", 0.0, 1.0, float(defaults["temperature"]), 0.05)
+        if architecture == "jev":
+            system_prompt = defaults["system_prompt"]
+            provider, model, temperature = "typesafe", "jev-1.13.0", 0.0
+            confidence_threshold = float(defaults["confidence_threshold"])
+            st.caption("Jev's evaluation rubric and decision threshold are frozen to the best-performing tested version.")
+        else:
+            system_prompt = st.text_area("System prompt", value=defaults["system_prompt"], height=220)
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                providers = list(PROVIDER_PRESETS)
+                default_provider = defaults.get("provider")
+                if default_provider not in providers:
+                    default_provider = "groq"
+                provider = st.selectbox("Provider", providers,
+                                         index=providers.index(default_provider))
+            with col2:
+                model = st.text_input("Model", value=defaults["model"])
+            with col3:
+                temperature = st.slider("Temperature", 0.0, 1.0, float(defaults["temperature"]), 0.05)
 
-        confidence_threshold = st.slider("Auto-remove confidence threshold", 0.0, 1.0,
-                                          float(defaults["confidence_threshold"]), 0.05)
-        reason = st.text_input("Reason for this change (optional — auto-filled from the diff if left blank)")
+            confidence_threshold = st.slider(
+                "Auto-remove confidence threshold", 0.0, 1.0,
+                float(defaults["confidence_threshold"]), 0.05,
+            )
+        reason = st.text_input(
+            "Reason for this change (optional — auto-filled from the diff if left blank)",
+            value=defaults.get("reason", ""),
+        )
         evaluate_candidate = st.form_submit_button("🔬 Evaluate candidate")
         deploy_now = st.form_submit_button("🚀 Deploy new version", type="primary")
 
@@ -85,6 +125,7 @@ def render_configuration(config_store, active_config, mark_step_done, goto):
             "architecture": architecture, "reason": reason,
         }
         new_version = _deploy(config_store, direct_candidate)
+        st.session_state["selected_agent_architecture"] = architecture
         st.session_state.pop("candidate_config", None)
         st.session_state.pop("candidate_evaluation", None)
         st.session_state.pop("config_prefill", None)
@@ -154,6 +195,7 @@ def render_configuration(config_store, active_config, mark_step_done, goto):
                           f"{recall_delta:+.0%}" if recall_delta is not None else None)
                 if st.button("🚀 Deploy evaluated candidate", type="primary"):
                     new_version = _deploy(config_store, candidate)
+                    st.session_state["selected_agent_architecture"] = candidate["architecture"]
                     st.session_state.pop("candidate_config", None)
                     st.session_state.pop("candidate_evaluation", None)
                     st.session_state.pop("config_prefill", None)
@@ -183,4 +225,6 @@ def render_configuration(config_store, active_config, mark_step_done, goto):
     rollback_target = st.selectbox("Roll back to version", [version["version"] for version in reversed(versions)])
     if st.button("Roll back"):
         config_store.rollback_to(rollback_target)
+        rolled_back = config_store.get_active_config()
+        st.session_state["selected_agent_architecture"] = rolled_back.get("architecture", "agno")
         st.rerun()
