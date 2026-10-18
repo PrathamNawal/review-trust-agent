@@ -23,7 +23,7 @@ def render_overview(goto):
     with st.container(border=True):
         st.image(
             str(image_path),
-            use_container_width=True,
+            width="stretch",
             caption=(
                 "Without context: a review stands alone. With Review Trust Agent: evidence is "
                 "gathered for a person to assess; the human makes the final decision."
