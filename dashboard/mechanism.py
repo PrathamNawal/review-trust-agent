@@ -136,13 +136,11 @@ def _describe_jev(config):
 
     steps.append(_step(
         "router", "Routing rule", "rule", "Routing rule",
-        "Not a model. Jev gives no confidence number (confidence is None), and the policy treats a "
-        "missing confidence as 'queue' — so every Jev result goes to a person, and the model can "
-        "never trigger a removal.",
-        [("Rule (compute_routing)",
-          "confidence missing → human queue. Only when a number exists: at or above the threshold → "
-          "remove or ignore, below → queue"),
-         ("Play's confidence threshold", "no effect on Jev — it is compared only when a confidence exists")],
+        "Not a model. Jev gives no confidence number, so the policy sends every result to a person "
+        "and the model can never trigger a removal.",
+        [("Rule (compute_routing)", "no confidence number → human queue"),
+         ("If a number existed", "at or above the threshold → remove or ignore · below → queue"),
+         ("Play's confidence threshold", "no effect on Jev — compared only when a confidence exists")],
         tunable_note="Fixed by code for Jev — not a Play setting.",
     ))
 
@@ -278,9 +276,10 @@ def _describe_agno(config):
     steps.append(_step(
         "a_router", "Routing", "rule", "Routing",
         "Not the model. A plain comparison against a number the PM sets; the model never sees it.",
-        [("Rule (compute_routing)",
-          f"fake and confidence ≥ {threshold:.2f} → auto-remove · genuine and ≥ {threshold:.2f} → "
-          f"ignore · below → human queue")],
+        [("Rule (compute_routing)", "compares the model's confidence with the threshold"),
+         (f"Fake, ≥ {threshold:.2f}", "auto-remove"),
+         (f"Genuine, ≥ {threshold:.2f}", "ignore"),
+         (f"Below {threshold:.2f}", "human queue")],
         tunables=[("Confidence threshold", f"{threshold:.2f}")], play=True,
     ))
     nodes["a_router"] = {"title": "Routing", "body": [f"threshold {threshold:.2f}"], "kind": "rule"}
@@ -385,8 +384,8 @@ def _esc(text):
 def _html_label(caption, title, body, color):
     """A node label with three levels: coloured caption, bold title, muted detail lines."""
     rows = [f'<TR><TD><FONT POINT-SIZE="11" COLOR="{color}"><B>{_esc(caption)}</B></FONT></TD></TR>',
-            f'<TR><TD><FONT POINT-SIZE="19"><B>{_esc(title)}</B></FONT></TD></TR>']
-    rows += [f'<TR><TD><FONT POINT-SIZE="15" COLOR="#475467">{_esc(line)}</FONT></TD></TR>' for line in body]
+            f'<TR><TD><FONT POINT-SIZE="21"><B>{_esc(title)}</B></FONT></TD></TR>']
+    rows += [f'<TR><TD><FONT POINT-SIZE="16" COLOR="#475467">{_esc(line)}</FONT></TD></TR>' for line in body]
     return ('<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="3">'
             + "".join(rows) + "</TABLE>>")
 
@@ -410,9 +409,9 @@ def build_stage_dot(mechanism, stages, selected=None):
     node_of = {step["id"]: stage["id"] for stage in stages for step in stage["steps"]}
     lines = [
         "digraph G {",
-        '  rankdir=LR; bgcolor="transparent"; nodesep=0.3; ranksep=0.4;',
+        '  rankdir=LR; bgcolor="transparent"; nodesep=0.3; ranksep=0.22;',
         '  node [shape=box, style="rounded,filled", fontname="Helvetica", fillcolor="#ffffff", '
-        'margin="0.2,0.2", width=1.55, height=1.5];',
+        'margin="0.12,0.2", width=2.6, height=1.5];',
         f'  edge [color="{MUTED}", fontname="Helvetica", fontsize=13, fontcolor="{MUTED}", arrowsize=0.9];',
     ]
 

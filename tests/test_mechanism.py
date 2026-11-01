@@ -53,7 +53,7 @@ class JevMechanismTests(unittest.TestCase):
 
     def test_routing_step_states_that_missing_confidence_goes_to_a_human(self):
         rule = dict(describe_mechanism(DEFAULT_CONFIG)["steps"][-2]["rows"])["Rule (compute_routing)"]
-        self.assertIn("confidence missing", rule)
+        self.assertIn("no confidence number", rule)
         self.assertIn("human queue", rule)
 
 
