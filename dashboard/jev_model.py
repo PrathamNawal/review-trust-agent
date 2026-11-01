@@ -9,12 +9,6 @@ from urllib.request import Request, urlopen
 
 ENDPOINT = "https://api.typesafe.ai/v1/systemone"
 
-# Review fields sent to Jev. Dataset labels and identifiers are not among them.
-REVIEW_STATE_FIELDS = ("rating", "date", "review_text")
-
-# Attempts per request when the API is rate limited (HTTP 429 / 529).
-MAX_ATTEMPTS = 4
-
 
 class JevAPIError(RuntimeError):
     pass
@@ -94,13 +88,13 @@ def _post_system_one(state, questions, api_key, model, timeout):
         method="POST",
     )
     started = time.monotonic()
-    for attempt in range(MAX_ATTEMPTS):
+    for attempt in range(4):
         try:
             with urlopen(request, timeout=timeout) as response:
                 body = json.loads(response.read().decode("utf-8"))
             return body, round((time.monotonic() - started) * 1000)
         except HTTPError as exc:
-            if exc.code in (429, 529) and attempt < MAX_ATTEMPTS - 1:
+            if exc.code in (429, 529) and attempt < 3:
                 time.sleep(min(2 ** attempt, 8))
                 continue
             raise JevAPIError(f"Jev API returned HTTP {exc.code}.") from None
@@ -116,7 +110,7 @@ def classify_review(review, evidence, api_key=None, model="jev-latest", timeout=
     if not api_key:
         raise JevAPIError("TYPESAFE_API_KEY is not configured.")
     state = {
-        "review": {k: review.get(k) for k in REVIEW_STATE_FIELDS},
+        "review": {k: review.get(k) for k in ("rating", "date", "review_text")},
         "evidence": evidence,
     }
     if method not in DECISION_METHODS:
@@ -188,7 +182,7 @@ def compare_choice_and_score(review, evidence, api_key=None, model="jev-1.13.0",
     if not api_key:
         raise JevAPIError("TYPESAFE_API_KEY is not configured.")
     state = {
-        "review": {k: review.get(k) for k in REVIEW_STATE_FIELDS},
+        "review": {k: review.get(k) for k in ("rating", "date", "review_text")},
         "evidence": evidence,
     }
     questions = {
@@ -245,7 +239,7 @@ def compare_choice_and_noul(review, evidence, api_key=None, model="jev-1.13.0", 
     if not api_key:
         raise JevAPIError("TYPESAFE_API_KEY is not configured.")
     state = {
-        "review": {k: review.get(k) for k in REVIEW_STATE_FIELDS},
+        "review": {k: review.get(k) for k in ("rating", "date", "review_text")},
         "evidence": evidence,
     }
     questions = {
@@ -294,7 +288,7 @@ def classify_review_dimensions(review, evidence, api_key=None, model="jev-1.13.0
     if not api_key:
         raise JevAPIError("TYPESAFE_API_KEY is not configured.")
     state = {
-        "review": {k: review.get(k) for k in REVIEW_STATE_FIELDS},
+        "review": {k: review.get(k) for k in ("rating", "date", "review_text")},
         "evidence": evidence,
     }
     payload = {"model": model, "state": state, "questions": DECOMPOSED_QUESTIONS}

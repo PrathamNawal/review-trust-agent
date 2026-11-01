@@ -40,8 +40,7 @@ def render_analyst_queue(sample, toolbox, active_config, mlflow_tracking, judged
         st.markdown(f"**Rating:** {'⭐' * int(row['rating'])} &nbsp;&nbsp; **Date:** {row['date']}")
         st.info(row["review_text"])
 
-        render_evidence_grid(st, toolbox, int(review_id), user_id, prod_id, row["review_text"], row["date"],
-                             config=active_config)
+        render_evidence_grid(st, toolbox, int(review_id), user_id, prod_id, row["review_text"], row["date"])
 
         agent_judgment = mlflow_tracking.get_agent_judgment(review_id, active_config["version"])
         st.divider()

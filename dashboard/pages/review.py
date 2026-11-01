@@ -42,8 +42,7 @@ def render_human_review(sample, toolbox, active_config, mlflow_tracking,
         user_id, prod_id = str(int(row["user_id"])), str(int(row["prod_id"]))
         st.markdown(f"**Rating:** {'⭐' * int(row['rating'])} &nbsp;&nbsp; **Date:** {row['date']}")
         st.info(row["review_text"])
-        render_evidence_grid(st, toolbox, int(review_id), user_id, prod_id, row["review_text"], row["date"],
-                             config=active_config)
+        render_evidence_grid(st, toolbox, int(review_id), user_id, prod_id, row["review_text"], row["date"])
 
         st.divider()
         with st.form("human_judgment_form"):

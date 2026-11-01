@@ -192,7 +192,7 @@ if page == "1. What is this?":
 # 2. HOW IT WORKS
 # ============================================================
 elif page == "2. How it works":
-    render_how_it_works(goto, active_config)
+    render_how_it_works(goto)
 
 
 # ============================================================
