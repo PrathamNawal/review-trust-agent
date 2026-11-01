@@ -12,7 +12,6 @@ import os
 
 import mlflow
 import pandas as pd
-from dashboard.decision_policy import filtered_score
 from dashboard.metrics import binary_classification_metrics, wilson_interval
 
 TRACKING_DB = os.path.join(os.path.dirname(__file__), "..", "data", "mlflow.db")
@@ -60,23 +59,6 @@ def log_judgment(*, judge_type, config_version, review_id, true_filtered, predic
         if n_tool_calls is not None:
             mlflow.log_metric("n_tool_calls", n_tool_calls)
         mlflow.set_tag("primary_signal", primary_signal or "")
-
-
-def get_agent_filtered_scores(config_version):
-    """{review_id: Jev's 0-1 'filtered' score or None} for this config's agent judgments, latest run wins."""
-    runs = get_all_runs()
-    needed = {"tags.judge_type", "tags.config_version", "tags.review_id"}
-    if runs.empty or not needed <= set(runs.columns):
-        return {}
-    runs = runs.loc[(runs["tags.judge_type"] == "agent") & (runs["tags.config_version"] == config_version)]
-    if "start_time" in runs.columns:
-        runs = runs.sort_values("start_time")
-    scores = {}
-    for _, row in runs.iterrows():
-        scores[int(row["tags.review_id"])] = filtered_score(
-            row.get("tags.jev_method"), row.get("tags.jev_choice_probabilities"),
-            row.get("tags.jev_decision_value"))
-    return scores
 
 
 def get_agent_judgment(review_id, config_version):
