@@ -2,7 +2,7 @@
 
 import streamlit as st
 
-from dashboard.decision_policy import compute_routing, ROUTING_LABELS, ROUTING_TONE
+from dashboard.decision_policy import compute_routing, order_queue, ROUTING_LABELS, ROUTING_TONE
 from dashboard.ui_components import render_badge, render_evidence_card, render_evidence_grid, resolve_tool_key
 
 
@@ -19,7 +19,17 @@ def render_analyst_queue(sample, toolbox, active_config, mlflow_tracking, judged
     if pending_appeals:
         st.warning(f"🚨 {len(pending_appeals)} case(s) appealed by a reviewer/business — shown first below.")
 
-    queue_ids = pending_appeals + [rid for rid in agent_judged if rid not in pending_appeals]
+    scores = mlflow_tracking.get_agent_filtered_scores(active_config["version"])
+    queue_ids = order_queue(pending_appeals, agent_judged, scores)
+    if any(score is not None for score in scores.values()):
+        st.caption("Sorted by Jev's score that a review is filtered, highest first; appeals stay on top. "
+                   "The score is not calibrated — it only sets the order, and every case still needs a person.")
+
+    def case_label(rid):
+        score = scores.get(rid)
+        return (f"#{rid}" + (f" · Jev {score:.0%} filtered" if score is not None else "")
+                + (" 🚨 appealed" if rid in pending_appeals else ""))
+
     if not queue_ids:
         st.info("No cases in the queue yet — the agent hasn't investigated anything under this "
                 "config version. Go to **4. Try it — Agent** to run one, or check **6. Check My "
@@ -30,7 +40,7 @@ def render_analyst_queue(sample, toolbox, active_config, mlflow_tracking, judged
             default_id = queue_ids[0]
         review_id = st.selectbox(
             "Case", queue_ids, index=queue_ids.index(default_id),
-            format_func=lambda rid: f"#{rid}" + (" 🚨 appealed" if rid in pending_appeals else ""),
+            format_func=case_label,
         )
         st.session_state["queue_review_id"] = review_id
         is_appealed = review_id in pending_appeals
