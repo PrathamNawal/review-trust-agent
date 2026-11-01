@@ -14,7 +14,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from dashboard.evidence import build_time_aware_evidence
+from dashboard.evidence import build_time_aware_evidence, prior_rows
 
 FEATURES = (
     "own_rating", "own_text_len_log",
@@ -129,3 +129,86 @@ def pick_set_aside_threshold(scores, labels, max_filtered_rate):
     cumulative = np.cumsum(labels[order]) / np.arange(1, len(labels) + 1)
     ok = np.where(cumulative <= max_filtered_rate)[0]
     return None if len(ok) == 0 else float(scores[order][ok[-1]])
+
+
+# --------------------------------------------------------------- extra features (v2)
+# Everything below uses only reviews dated before the one being described, like the evidence above.
+
+EXTRA_FAMILIES = {
+    "reviewer extras": (
+        "reviewer_prior_0", "reviewer_prior_1", "reviewer_prior_2_3", "reviewer_prior_4_9",
+        "reviewer_days_since_first_log", "reviewer_days_since_last_log", "reviewer_extreme_share",
+        "reviewer_same_rating_share", "reviewer_own_rating_deviation",
+    ),
+    "business extras": (
+        "business_days_since_first_log", "business_rating_std", "business_extreme_share",
+        "business_reviews_last_30d_log", "business_own_rating_deviation",
+    ),
+    "text style": (
+        "own_word_count_log", "own_exclamations", "own_caps_share", "own_digit_share",
+        "own_avg_word_len", "own_sentences_log", "own_weekend",
+    ),
+}
+EXTRA_FEATURES = tuple(f for members in EXTRA_FAMILIES.values() for f in members)
+
+
+def extract_extra_features(toolbox, review):
+    date = pd.Timestamp(review["date"])
+    rating = float(review["rating"])
+    reviewer = prior_rows(toolbox, "user_id", review["user_id"], date)
+    business = prior_rows(toolbox, "prod_id", review["prod_id"], date)
+    text = str(review["review_text"])
+    words = text.split()
+    nan = float("nan")
+    n = len(reviewer)
+    ratings, b_ratings = reviewer["rating"], business["rating"]
+    last_30 = (date - business["date"]).dt.days <= 30 if len(business) else pd.Series([], dtype=bool)
+    return {
+        "reviewer_prior_0": float(n == 0), "reviewer_prior_1": float(n == 1),
+        "reviewer_prior_2_3": float(2 <= n <= 3), "reviewer_prior_4_9": float(4 <= n <= 9),
+        "reviewer_days_since_first_log": math.log1p((date - reviewer["date"].min()).days) if n else nan,
+        "reviewer_days_since_last_log": math.log1p((date - reviewer["date"].max()).days) if n else nan,
+        "reviewer_extreme_share": float(ratings.isin([1.0, 5.0]).mean()) if n else nan,
+        "reviewer_same_rating_share": float((ratings == rating).mean()) if n else nan,
+        "reviewer_own_rating_deviation": abs(rating - float(ratings.mean())) if n else nan,
+        "business_days_since_first_log": math.log1p((date - business["date"].min()).days) if len(business) else nan,
+        "business_rating_std": float(b_ratings.std()) if len(business) > 1 else nan,
+        "business_extreme_share": float(b_ratings.isin([1.0, 5.0]).mean()) if len(business) else nan,
+        "business_reviews_last_30d_log": math.log1p(int(last_30.sum())) if len(business) else nan,
+        "business_own_rating_deviation": abs(rating - float(b_ratings.mean())) if len(business) else nan,
+        "own_word_count_log": math.log1p(len(words)),
+        "own_exclamations": float(text.count("!")),
+        "own_caps_share": sum(ch.isupper() for ch in text) / max(len(text), 1),
+        "own_digit_share": sum(ch.isdigit() for ch in text) / max(len(text), 1),
+        "own_avg_word_len": float(np.mean([len(w) for w in words])) if words else nan,
+        "own_sentences_log": math.log1p(sum(text.count(c) for c in ".!?")),
+        "own_weekend": float(date.weekday() >= 5),
+    }
+
+
+def accuracy_at_prevalence(tpr, fpr, prevalence):
+    """Accuracy a rule with these rates would have if `prevalence` of reviews were filtered."""
+    return prevalence * tpr + (1 - prevalence) * (1 - fpr)
+
+
+def choose_cutoff_by_prevalence(scores, labels, prevalence, accuracy_floor):
+    """Score cutoff (flag when score >= cutoff) with the highest recall whose accuracy, recomputed
+    at a fixed `prevalence`, stays >= `accuracy_floor`. Uses rates, so it does not move when a year's
+    filtered share does. Returns (cutoff, recall, false_positive_rate) or None if none qualifies."""
+    scores, labels = np.asarray(scores), np.asarray(labels)
+    positives, negatives = labels.sum(), len(labels) - labels.sum()
+    best = None
+    for cutoff in np.unique(scores):
+        flagged = scores >= cutoff
+        tpr = float((flagged & (labels == 1)).sum() / positives)
+        fpr = float((flagged & (labels == 0)).sum() / negatives)
+        if accuracy_at_prevalence(tpr, fpr, prevalence) >= accuracy_floor and (best is None or tpr >= best[1]):
+            best = (float(cutoff), tpr, fpr)
+    return best
+
+
+def cutoff_at_false_positive_rate(scores, labels, fpr_target):
+    """Score cutoff that flags about `fpr_target` of the not-filtered reviews (chosen on validation data)."""
+    negatives = np.sort(np.asarray(scores)[np.asarray(labels) == 0])[::-1]
+    index = max(int(round(len(negatives) * fpr_target)) - 1, 0)
+    return float(negatives[index])

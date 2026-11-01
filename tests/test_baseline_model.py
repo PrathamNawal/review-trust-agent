@@ -10,8 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from dashboard.baseline_model import (  # noqa: E402
-    FEATURES, FEATURE_FAMILIES, build_pipeline, extract_features, pick_set_aside_threshold,
-    share_needed_for_recall, time_split, top_share_captured,
+    EXTRA_FEATURES, FEATURES, FEATURE_FAMILIES, accuracy_at_prevalence, build_pipeline,
+    choose_cutoff_by_prevalence, cutoff_at_false_positive_rate, extract_extra_features, extract_features,
+    pick_set_aside_threshold, share_needed_for_recall, time_split, top_share_captured,
 )
 from scripts.tools import ToolBox  # noqa: E402
 
@@ -53,6 +54,56 @@ class FeatureTests(unittest.TestCase):
     def test_feature_families_only_name_real_features(self):
         for members in FEATURE_FAMILIES.values():
             self.assertTrue(set(members) <= set(FEATURES))
+
+
+class ExtraFeatureTests(unittest.TestCase):
+    def test_every_extra_feature_is_present(self):
+        features = extract_extra_features(_toolbox(EARLIER), CASE)
+        self.assertEqual(set(features), set(EXTRA_FEATURES))
+
+    def test_later_and_same_day_reviews_cannot_change_extra_features(self):
+        later = EARLIER + [(2, 1, 10, 1.0, "2012-09-01", "great pasta here again"),
+                           (3, 1, 10, 1.0, "2012-03-01", "great pasta")]
+        before, after = extract_extra_features(_toolbox(EARLIER), CASE), extract_extra_features(_toolbox(later), CASE)
+        for name in EXTRA_FEATURES:
+            a, b = before[name], after[name]
+            self.assertTrue((math.isnan(a) and math.isnan(b)) or a == b, name)
+
+    def test_prior_count_buckets_are_exclusive(self):
+        none = extract_extra_features(_toolbox([(1, 1, 10, 5.0, "2012-03-01", "great pasta here")]), CASE)
+        one = extract_extra_features(_toolbox(EARLIER), CASE)
+        self.assertEqual((none["reviewer_prior_0"], none["reviewer_prior_1"]), (1.0, 0.0))
+        self.assertEqual((one["reviewer_prior_0"], one["reviewer_prior_1"], one["reviewer_prior_2_3"]), (0.0, 1.0, 0.0))
+        self.assertTrue(math.isnan(none["reviewer_days_since_first_log"]))
+
+
+class CutoffTests(unittest.TestCase):
+    def test_accuracy_at_prevalence(self):
+        self.assertAlmostEqual(accuracy_at_prevalence(0.0, 0.0, 0.12), 0.88)   # flag nothing
+        self.assertAlmostEqual(accuracy_at_prevalence(1.0, 1.0, 0.12), 0.12)   # flag everything
+        self.assertAlmostEqual(accuracy_at_prevalence(0.5, 0.1, 0.2), 0.2 * 0.5 + 0.8 * 0.9)
+
+    def test_chosen_cutoff_has_the_most_recall_that_still_meets_the_floor(self):
+        scores = np.array([0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.05])
+        labels = np.array([1, 1, 0, 1, 0, 0, 0, 0, 0, 0])
+        cutoff, tpr, fpr = choose_cutoff_by_prevalence(scores, labels, 0.3, 0.85)
+        self.assertGreaterEqual(accuracy_at_prevalence(tpr, fpr, 0.3), 0.85)
+        # lowering the cutoff any further must break the floor
+        lower = scores[scores < cutoff]
+        if len(lower):
+            flagged = scores >= lower.max()
+            tpr2 = (flagged & (labels == 1)).sum() / labels.sum()
+            fpr2 = (flagged & (labels == 0)).sum() / (labels == 0).sum()
+            self.assertLess(accuracy_at_prevalence(tpr2, fpr2, 0.3), 0.85)
+
+    def test_no_cutoff_when_the_floor_is_unreachable(self):
+        self.assertIsNone(choose_cutoff_by_prevalence([0.1, 0.2, 0.3, 0.4], [1, 1, 0, 0], 0.5, 0.99))
+
+    def test_cutoff_at_false_positive_rate_flags_that_share_of_negatives(self):
+        scores = np.linspace(0, 1, 101)
+        labels = np.zeros(101, dtype=int)
+        cutoff = cutoff_at_false_positive_rate(scores, labels, 0.10)
+        self.assertAlmostEqual((scores >= cutoff).mean(), 0.10, delta=0.02)
 
 
 class SplitAndMetricTests(unittest.TestCase):
