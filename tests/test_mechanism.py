@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT))
 from dashboard.config_store import DEFAULT_CONFIG, DEFAULT_JEV_EVIDENCE_SOURCES
 from dashboard.evidence import CARD_KEYS, build_time_aware_evidence, evidence_for_architecture
 from dashboard.jev_agent import MODEL_ID
-from dashboard.mechanism import JEV_SOURCES, build_dot, build_stages, describe_mechanism
+from dashboard.mechanism import JEV_SOURCES, build_dot, build_stage_dot, build_stages, describe_mechanism
 from scripts.tool_schemas import TOOL_DEFS
 from scripts.tools import ToolBox
 
@@ -142,6 +142,30 @@ class StageTests(unittest.TestCase):
         self.assertEqual([s["label"] for s in stages][0], "Review in")
         tools = next(s for s in stages if s["cluster"] == "tools")
         self.assertTrue(all(step["id"].startswith("t_") for step in tools["steps"]))
+
+
+class StageDiagramTests(unittest.TestCase):
+    def test_hero_flow_has_one_node_per_stage_and_fills_the_selected_one(self):
+        mech = describe_mechanism(DEFAULT_CONFIG)
+        stages = build_stages(mech)
+        dot = build_stage_dot(mech, stages, "ev")
+        self.assertIn("rankdir=LR", dot)
+        for stage in stages:
+            self.assertIn(f"  {stage['id']} [", dot)
+        self.assertEqual([l for l in dot.splitlines() if "penwidth=4.5" in l][0].split()[0], "ev")
+        self.assertNotIn("penwidth=4.5", build_stage_dot(mech, stages))
+
+    def test_switched_off_source_is_named_in_the_evidence_node(self):
+        config = {**DEFAULT_CONFIG, "jev_evidence_sources": ["reviewer_history"]}
+        mech = describe_mechanism(config)
+        self.assertIn("(off)", build_stage_dot(mech, build_stages(mech)))
+
+    def test_agno_flow_keeps_the_tool_loop_and_routing_outcomes(self):
+        config = {**DEFAULT_CONFIG, "architecture": "agno", "provider": "groq", "model": "openai/gpt-oss-120b"}
+        mech = describe_mechanism(config)
+        dot = build_stage_dot(mech, build_stages(mech))
+        self.assertIn("tools -> a_model", dot)
+        self.assertIn("a_router -> o_queue", dot)
 
 
 if __name__ == "__main__":
