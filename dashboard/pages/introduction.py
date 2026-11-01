@@ -64,12 +64,8 @@ AGNO_DETAILS = (
 )
 
 
-BADGE_COLORS = {
-    "input": "gray", "evidence": "green", "tool": "green", "model": "blue",
-    "output": "violet", "terminal": "violet", "rule": "orange", "human": "green",
-}
-STAGE_KIND = {"evidence": "evidence · built by code", "tool": "tools · chosen by the model"}
 PAGE_WIDTH = 1160  # readable measure: keeps rows, tiles and the diagram from stretching on wide screens
+PRESENTER_WIDTH = 1500  # wider for a projector, but still capped so lines stay readable
 PRESENTER_KEY = "hiw_presenter"
 PRESENTER_CSS = """<style>
 html { font-size: 150%; }
@@ -84,16 +80,16 @@ def _go_to_stage(key, stage_id):
 
 def _render_rows(rows):
     for key, value in rows:
-        label_col, value_col = st.columns([1, 4], gap="small")
+        label_col, value_col = st.columns([1, 3], gap="small")
         label_col.caption(key)
         value_col.markdown(value)
 
 
 def _render_tunables(tunables, note):
     if not tunables:
-        st.caption(f":material/lock: {note}")
+        st.markdown(f":material/lock: {note}")
         return
-    st.caption(":material/tune: Tunable on Play")
+    st.markdown(":material/tune: **Tunable on Play**")
     with st.container(horizontal=True):
         for key, value in tunables:
             with st.container(border=True):
@@ -115,16 +111,13 @@ def _render_source_card(step):
                 _render_rows(extra)
 
 
-def _render_stage(stage, goto, number, next_stage, key):
+def _render_stage(stage, goto, number, previous_stage, next_stage, key):
     first = stage["steps"][0]
     grouped = bool(stage["cluster"])
     wants_play = any(step["play"] for step in stage["steps"])
     with st.container(border=True):
         head, action = st.columns([3, 1], vertical_alignment="center")
-        with head:
-            st.badge(STAGE_KIND[stage["kind"]] if grouped else first["kind_name"],
-                     color=BADGE_COLORS[stage["kind"]])
-            st.subheader(f"{number}. " + (stage["label"].split(" · ")[0] if grouped else first["title"]))
+        head.subheader(f"{number}. " + (stage["label"].split(" · ")[0] if grouped else first["title"]))
         if wants_play and action.button("Tune on Play", icon=":material/tune:", width="stretch",
                                         key=f"hiw_play_{stage['id']}"):
             goto(PLAY_PAGE)
@@ -135,14 +128,17 @@ def _render_stage(stage, goto, number, next_stage, key):
                     with column:
                         _render_source_card(step)
             if any(step["tunables"] for step in stage["steps"]):
-                st.caption(":material/tune: Switch each source on or off on Play.")
+                st.markdown(":material/tune: **Switch each source on or off on Play.**")
         else:
             _render_rows(first["rows"])
             _render_tunables(first["tunables"], first["tunable_note"])
-        if next_stage:
-            with st.container(horizontal=True, horizontal_alignment="right"):
-                st.button(f"Next: {next_stage['label'].split(' · ')[0]}", icon=":material/arrow_forward:",
-                          key=f"hiw_next_{stage['id']}", on_click=_go_to_stage, args=(key, next_stage["id"]))
+        with st.container(horizontal=True, horizontal_alignment="distribute"):
+            for target, label, icon in ((previous_stage, "Back", ":material/arrow_back:"),
+                                        (next_stage, "Next", ":material/arrow_forward:")):
+                if target:
+                    st.button(f"{label}: {target['label'].split(' · ')[0]}", icon=icon,
+                              key=f"hiw_{label.lower()}_{stage['id']}", on_click=_go_to_stage,
+                              args=(key, target["id"]))
 
 
 def render_how_it_works(goto, active_config):
@@ -160,7 +156,7 @@ def render_how_it_works(goto, active_config):
     if presenter:
         st.html(PRESENTER_CSS)
     with st.container(horizontal_alignment="center"):
-        with st.container(width="stretch" if presenter else PAGE_WIDTH):
+        with st.container(width=PRESENTER_WIDTH if presenter else PAGE_WIDTH):
             with st.container(horizontal=True, horizontal_alignment="right"):
                 st.toggle("Presenter mode", key=PRESENTER_KEY,
                           help="Larger type, full-width diagram and no sidebar, for a projector.")
@@ -185,20 +181,18 @@ def _render_page(mech, goto, active_config, presenter=False):
         st.session_state[key] = default_stage
     labels = {stage["id"]: f"{n}. {stage['label']}" for n, stage in enumerate(stages, 1)}
 
-    hero = st.container(border=True)
-    with hero:
-        diagram_slot = st.container()
-        chosen = st.segmented_control(
-            "Stage", options=list(by_id), format_func=labels.get, key=key,
-            label_visibility="collapsed", width="stretch",
-        ) or default_stage
-        st.caption("Select a stage to see what happens there.")
-    with diagram_slot:
+    chosen = st.session_state[key]
+    with st.container(border=True):
         st.graphviz_chart(build_stage_dot(mech, stages, chosen), width="stretch")
+        for column, (number, stage) in zip(st.columns(len(stages), gap="small"), enumerate(stages, 1)):
+            column.button(labels[stage["id"]], key=f"hiw_rail_{stage['id']}", width="stretch",
+                          type="primary" if stage["id"] == chosen else "secondary",
+                          on_click=_go_to_stage, args=(key, stage["id"]))
 
     position = list(by_id).index(chosen)
+    previous_stage = stages[position - 1] if position > 0 else None
     following = stages[position + 1] if position + 1 < len(stages) else None
-    _render_stage(by_id[chosen], goto, position + 1, following, key)
+    _render_stage(by_id[chosen], goto, position + 1, previous_stage, following, key)
 
     state_col, memory_col = st.columns(2, gap="medium")
     for column, card in ((state_col, mech["state_card"]), (memory_col, mech["memory_card"])):
