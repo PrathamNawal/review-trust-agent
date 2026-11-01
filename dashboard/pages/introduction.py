@@ -77,6 +77,7 @@ html { font-size: 150%; }
 [data-testid="collapsedControl"] { display: none; }
 </style>"""
 
+
 def _go_to_stage(key, stage_id):
     st.session_state[key] = stage_id
 
