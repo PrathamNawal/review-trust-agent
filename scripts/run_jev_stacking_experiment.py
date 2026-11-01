@@ -63,6 +63,18 @@ def logit(p, eps=1e-4):
     return np.log(p / (1 - p))
 
 
+def with_retries(call, attempts=5, first_wait=2.0, sleep=time.sleep):
+    """Run `call`, retrying a failed request with growing waits (2, 4, 8, 16 s). One dropped connection must not
+    end a run of thousands of calls. A retried request can occasionally be billed twice if the first one did get through."""
+    for attempt in range(attempts):
+        try:
+            return call()
+        except JevAPIError:
+            if attempt == attempts - 1:
+                raise
+            sleep(first_wait * 2 ** attempt)
+
+
 def ask_jev(sample_rows, cache_path, max_calls, pause):
     toolbox = get_toolbox()
     prompts = DEFAULT_JEV_PROMPTS
@@ -77,9 +89,11 @@ def ask_jev(sample_rows, cache_path, max_calls, pause):
                       "review_text": row.review_text, "rating": float(row.rating)}
             evidence = build_time_aware_evidence(toolbox, review, DEFAULT_JEV_EVIDENCE_SOURCES)
             try:
-                result = classify_review(review, evidence, model=MODEL_ID, instructions=prompts["choice"], method="choice")
+                result = with_retries(lambda: classify_review(
+                    review, evidence, model=MODEL_ID, instructions=prompts["choice"], method="choice"))
             except JevAPIError as exc:
-                print(f"  review {review['review_id']}: {exc} — stopping so nothing is lost; re-run to continue.")
+                print(f"  review {review['review_id']}: {exc} — still failing after retries; stopping so nothing is lost. "
+                      "Re-run to continue.")
                 break
             out.write(json.dumps({
                 "review_id": review["review_id"], "predicted_filtered": result["predicted_filtered"],

@@ -9,7 +9,10 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from scripts.run_jev_stacking_experiment import logit, paired_auc_difference, pending_review_ids, read_cache  # noqa: E402
+from dashboard.jev_model import JevAPIError  # noqa: E402
+from scripts.run_jev_stacking_experiment import (  # noqa: E402
+    logit, paired_auc_difference, pending_review_ids, read_cache, with_retries,
+)
 
 
 class StackingHelperTests(unittest.TestCase):
@@ -37,6 +40,25 @@ class StackingHelperTests(unittest.TestCase):
         s = rng.normal(size=300) + y
         low, high = paired_auc_difference(y, s, s, rng, rounds=200)
         self.assertEqual((low, high), (0.0, 0.0))
+
+
+class RetryTests(unittest.TestCase):
+    def test_a_dropped_connection_is_retried_then_succeeds(self):
+        calls, waits = [], []
+
+        def flaky():
+            calls.append(1)
+            if len(calls) < 3:
+                raise JevAPIError("Jev request failed (RemoteDisconnected).")
+            return "answer"
+        self.assertEqual(with_retries(flaky, sleep=waits.append), "answer")
+        self.assertEqual((len(calls), waits), (3, [2.0, 4.0]))
+
+    def test_it_gives_up_after_the_last_attempt(self):
+        def always():
+            raise JevAPIError("down")
+        with self.assertRaises(JevAPIError):
+            with_retries(always, attempts=3, sleep=lambda _: None)
 
 
 if __name__ == "__main__":
