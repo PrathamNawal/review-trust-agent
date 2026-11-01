@@ -70,41 +70,12 @@ BADGE_COLORS = {
 }
 STAGE_KIND = {"evidence": "evidence · built by code", "tool": "tools · chosen by the model"}
 PAGE_WIDTH = 1160  # readable measure: keeps rows, tiles and the diagram from stretching on wide screens
-
-
 PRESENTER_KEY = "hiw_presenter"
 PRESENTER_CSS = """<style>
 html { font-size: 150%; }
 [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"],
 [data-testid="collapsedControl"] { display: none; }
 </style>"""
-
-# Static notes for the presenter view. Every figure below was measured or observed while building this page.
-DECISIONS = (
-    ("The page is read from the running system, not drawn",
-     "`describe_mechanism(config)` builds every stage from the deployed config, the real tool list "
-     "(`_build_tools` for Agno) and constants such as `MODEL_ID`, `MAX_ATTEMPTS` and `REVIEW_STATE_FIELDS`. "
-     "A unit test fails if the evidence-source list drifts from `DEFAULT_JEV_EVIDENCE_SOURCES`, so the "
-     "diagram cannot quietly go stale."),
-    ("Native Streamlit first, Graphviz only for the flow",
-     "The rail, panel, cards and tiles are native components. The flow is Graphviz because a custom "
-     "component was not worth it, but its nodes can't be clicked, so the rail drives the diagram and "
-     "both use the app's primary colour for 'selected'."),
-    ("Legibility is set by how much text a node holds, not by font size",
-     "Graphviz is scaled to its container, so raising font size only widens the diagram and it is scaled "
-     "back down. The fix was fewer words per node (caption, title, one line), with the detail in the "
-     "panel. Arrow labels appear only where the flow branches or loops."),
-    ("Found and fixed an evidence mismatch",
-     "Jev receives only reviews dated before the one being judged, but the human pages showed evidence "
-     "that also included later reviews. On 400 sampled reviews, the number of other reviews shown "
-     "differed for the reviewer in 254 cases and for the business in 398. A shared `evidence.py` now feeds both, and the same check "
-     "finds 0 mismatches."),
-    ("The first deploy failed, and what I did about it",
-     "The page errored on Streamlit Cloud with a `TypeError` at the call site, even after a reboot. I "
-     "reverted it, ran the branch as a separate test app where it rendered fine, then re-merged and it "
-     "worked after a reboot. I never confirmed the root cause, so the lesson is to check the live page "
-     "text after every deploy and keep a revert ready."),
-)
 
 
 def _go_to_stage(key, stage_id):
@@ -192,8 +163,7 @@ def render_how_it_works(goto, active_config):
         with st.container(width="stretch" if presenter else PAGE_WIDTH):
             with st.container(horizontal=True, horizontal_alignment="right"):
                 st.toggle("Presenter mode", key=PRESENTER_KEY,
-                          help="Larger type, full-width diagram and no sidebar, for a projector. Also shows the "
-                               "decisions behind this page.")
+                          help="Larger type, full-width diagram and no sidebar, for a projector.")
             _render_page(mech, goto, active_config, presenter)
 
 
@@ -236,13 +206,6 @@ def _render_page(mech, goto, active_config, presenter=False):
             st.markdown(f"#### {card['title']}")
             st.markdown(card["body"])
             st.caption(card["source"])
-
-    if presenter:
-        with st.container(border=True):
-            st.markdown("#### Decisions behind this page")
-            for number, (title, body) in enumerate(DECISIONS, 1):
-                st.markdown(f"**{number}. {title}**")
-                st.markdown(body)
 
     is_jev = mech["architecture"] == "jev"
     st.info(JEV_RESULT_NOTE if is_jev else AGNO_RESULT_NOTE, icon=":material/query_stats:")
