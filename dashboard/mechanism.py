@@ -123,13 +123,11 @@ def _describe_jev(config):
                      "its pick. There is no cutoff.")
         label_rows = [("Output", "label + probability of the chosen label"),
                       ("Calibrated?", "No — the app marks confidence_calibrated = False")]
-        label_text = "Advisory label\\nfiltered or recommended\\nJev picks it · no cutoff"
     else:
         label_why = (f"Jev returns a 0–1 value. A PM-set cutoff ({cutoff:.2f}) turns it into filtered "
                      "(at or above) or recommended — an experimental rule, not a calibrated one.")
         label_rows = [("Output", "0–1 value, then cutoff → label"),
                       ("Calibrated?", "No — the app marks confidence_calibrated = False")]
-        label_text = f"Advisory label\\n0–1 value ≥ {cutoff:.2f}\\n→ filtered, else recommended"
     steps.append(_step(
         "label", "Advisory label", "output", "Advisory label", label_why, label_rows,
         tunables=None if cutoff is None else [("Cutoff", f"{cutoff:.2f}")],
@@ -157,15 +155,14 @@ def _describe_jev(config):
         tunable_note="Not a Play setting.",
     ))
 
-    nodes = {"input": {"label": "Review in\\nrating · date · text", "kind": "input"}}
-    for key, _name, short, *_ in JEV_SOURCES:
-        on = key in enabled
-        nodes[f"src_{key}"] = {"label": short + ("" if on else "\\nswitched off"),
-                               "kind": "evidence", "off": not on}
-    nodes["jev"] = {"label": f"Jev · the model\\n{MODEL_ID} · pinned\\nquestion: {method_name}", "kind": "model"}
-    nodes["label"] = {"label": label_text, "kind": "output"}
-    nodes["router"] = {"label": "Routing rule\\nno confidence number →\\nalways the human queue", "kind": "rule"}
-    nodes["human"] = {"label": "Human reviewer\\naccept · override · escalate", "kind": "human"}
+    nodes = {"input": {"title": "Review in", "body": ["rating · date · text"], "kind": "input"}}
+    for key, name, *_ in JEV_SOURCES:
+        nodes[f"src_{key}"] = {"title": name, "body": [], "kind": "evidence", "off": key not in enabled}
+    nodes["jev"] = {"title": "Jev (model)", "body": [MODEL_ID, f"question: {method_name}"], "kind": "model"}
+    nodes["label"] = {"title": "Advisory label",
+                      "body": ["no cutoff"] if cutoff is None else [f"cutoff {cutoff:.2f}"], "kind": "output"}
+    nodes["router"] = {"title": "Routing rule", "body": ["always a human"], "kind": "rule"}
+    nodes["human"] = {"title": "Human reviewer", "body": ["accept · override"], "kind": "human"}
 
     first, last = f"src_{JEV_SOURCES[0][0]}", f"src_{JEV_SOURCES[-1][0]}"
     graph = {
@@ -173,11 +170,12 @@ def _describe_jev(config):
         "clusters": [{"id": "ev", "label": "Evidence step · built by code, earlier reviews only",
                       "members": [f"src_{key}" for key, *_ in JEV_SOURCES]}],
         "edges": [
-            {"src": "input", "dst": first, "lhead": "ev"},
-            {"src": last, "dst": "jev", "ltail": "ev", "label": "one request · no tool loop"},
-            {"src": "jev", "dst": "label", "label": "Jev answers"},
-            {"src": "label", "dst": "router"},
-            {"src": "router", "dst": "human", "label": "a rule, not a model"},
+            {"src": "input", "dst": first, "lhead": "ev", "short": "build evidence"},
+            {"src": last, "dst": "jev", "ltail": "ev", "label": "one request · no tool loop",
+             "short": "one request"},
+            {"src": "jev", "dst": "label", "label": "Jev answers", "short": "answers"},
+            {"src": "label", "dst": "router", "short": "advisory"},
+            {"src": "router", "dst": "human", "label": "a rule, not a model", "short": "every result"},
         ],
     }
 
@@ -247,9 +245,8 @@ def _describe_agno(config):
     )]
 
     nodes = {
-        "a_input": {"label": "Review in\\nrating · date · text", "kind": "input"},
-        "a_model": {"label": f"The agent (the model)\\n{provider} · {model}\\ntemperature {temperature:.2f}",
-                    "kind": "model"},
+        "a_input": {"title": "Review in", "body": ["rating · date · text"], "kind": "input"},
+        "a_model": {"title": "The agent", "body": [model], "kind": "model"},
     }
     tool_ids = []
     for tool in evidence_tools:
@@ -264,8 +261,7 @@ def _describe_agno(config):
             [("Asks", asks), ("Parameters (read from the tool)", " · ".join(params))],
             tunable_note="Not tunable from Play — lives in scripts/tools.py.",
         ))
-        nodes[tid] = {"label": f"{name}\\n{', '.join(params[:2])}{' …' if len(params) > 2 else ''}",
-                      "kind": "tool"}
+        nodes[tid] = {"title": name, "body": [], "kind": "tool"}
 
     if terminal is not None:
         props = list((terminal.parameters or {}).get("properties", {}))
@@ -277,7 +273,7 @@ def _describe_agno(config):
              ("Output", " · ".join(props))],
             tunable_note="Fixed by code — not a Play setting.",
         ))
-        nodes["a_term"] = {"label": f"{terminal.name}\\nends the run — no extra call", "kind": "terminal"}
+        nodes["a_term"] = {"title": terminal.name, "body": ["ends the run"], "kind": "terminal"}
 
     steps.append(_step(
         "a_router", "Routing", "rule", "Routing",
@@ -287,24 +283,23 @@ def _describe_agno(config):
           f"ignore · below → human queue")],
         tunables=[("Confidence threshold", f"{threshold:.2f}")], play=True,
     ))
-    nodes["a_router"] = {"label": f"Routing\\nconfidence ≥ {threshold:.2f} ?\\nplain threshold, not the model",
-                         "kind": "rule"}
-    nodes["o_remove"] = {"label": f"Auto-remove\\nfake, ≥ {threshold:.2f}", "kind": "output"}
-    nodes["o_queue"] = {"label": f"Human queue\\nbelow {threshold:.2f}", "kind": "human"}
-    nodes["o_ignore"] = {"label": f"Ignore\\ngenuine, ≥ {threshold:.2f}", "kind": "output"}
-    nodes["cap"] = {"label": f"Safety cap · {MAX_TURNS} model calls\\nno judgment → warning, nothing logged",
-                    "kind": "input", "dashed": True}
+    nodes["a_router"] = {"title": "Routing", "body": [f"threshold {threshold:.2f}"], "kind": "rule"}
+    nodes["o_remove"] = {"title": "Auto-remove", "body": [f"fake, ≥ {threshold:.2f}"], "kind": "output"}
+    nodes["o_queue"] = {"title": "Human queue", "body": [f"below {threshold:.2f}"], "kind": "human"}
+    nodes["o_ignore"] = {"title": "Ignore", "body": [f"genuine, ≥ {threshold:.2f}"], "kind": "output"}
+    nodes["cap"] = {"title": "Safety cap", "body": [f"{MAX_TURNS} model calls"], "kind": "input", "dashed": True}
 
-    edges = [{"src": "a_input", "dst": "a_model"}]
+    edges = [{"src": "a_input", "dst": "a_model", "short": "review"}]
     if tool_ids:
-        edges += [{"src": "a_model", "dst": tool_ids[0], "lhead": "tools", "label": "calls a tool"},
-                  {"src": tool_ids[-1], "dst": "a_model", "ltail": "tools", "label": "result goes back"}]
+        edges += [{"src": "a_model", "dst": tool_ids[0], "lhead": "tools", "label": "calls a tool", "short": "calls a tool"},
+                  {"src": tool_ids[-1], "dst": "a_model", "ltail": "tools", "label": "result goes back", "short": "result back"}]
     if terminal is not None:
-        edges += [{"src": "a_model", "dst": "a_term", "label": "decides it has enough"},
-                  {"src": "a_term", "dst": "a_router"}]
-    edges += [{"src": "a_router", "dst": "o_remove"}, {"src": "a_router", "dst": "o_queue"},
-              {"src": "a_router", "dst": "o_ignore"},
-              {"src": "a_model", "dst": "cap", "dashed": True}]
+        edges += [{"src": "a_model", "dst": "a_term", "label": "decides it has enough", "short": "has enough"},
+                  {"src": "a_term", "dst": "a_router", "short": "judgment"}]
+    edges += [{"src": "a_router", "dst": "o_remove", "short": "remove"},
+              {"src": "a_router", "dst": "o_queue", "short": "queue"},
+              {"src": "a_router", "dst": "o_ignore", "short": "ignore"},
+              {"src": "a_model", "dst": "cap", "dashed": True, "short": "no verdict"}]
 
     return {
         "architecture": "agno",
@@ -369,119 +364,88 @@ def build_stages(mechanism):
 
 # ----------------------------------------------------------------------- diagram
 
+ACCENT = "#C65346"  # the app's primaryColor (.streamlit/config.toml): "selected" in the rail too
+MUTED = "#667085"
+
+KIND_CAPTIONS = {
+    "input": "INPUT", "evidence": "EVIDENCE · BY CODE", "tool": "TOOLS · MODEL PICKS",
+    "model": "MODEL", "output": "OUTPUT", "terminal": "ENDS THE RUN",
+    "rule": "RULE · NOT A MODEL", "human": "PERSON",
+}
+
+
 def _q(text):
     return str(text).replace('"', '\\"')
 
 
-def _stage_label(stage, graph):
+def _esc(text):
+    return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _html_label(caption, title, body, color):
+    """A node label with three levels: coloured caption, bold title, muted detail lines."""
+    rows = [f'<TR><TD><FONT POINT-SIZE="11" COLOR="{color}"><B>{_esc(caption)}</B></FONT></TD></TR>',
+            f'<TR><TD><FONT POINT-SIZE="19"><B>{_esc(title)}</B></FONT></TD></TR>']
+    rows += [f'<TR><TD><FONT POINT-SIZE="15" COLOR="#475467">{_esc(line)}</FONT></TD></TR>' for line in body]
+    return ('<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="3">'
+            + "".join(rows) + "</TABLE>>")
+
+
+def _stage_node(number, stage, graph):
+    """(caption, title, body lines) for a stage, read from the graph nodes and steps."""
+    caption = f"{number} · {KIND_CAPTIONS[stage['kind']]}"
     if not stage["cluster"]:
-        return graph["nodes"][stage["steps"][0]["id"]]["label"]
-    names = []
-    for step in stage["steps"]:
-        name = graph["nodes"][step["id"]]["label"].split("\\n")[0:2]
-        name = " ".join(part for part in name if part != "switched off")
-        names.append(name + (" (off)" if step["off"] else ""))
-    heading = "Evidence · by code" if stage["kind"] == "evidence" else "Tools · model picks"
-    return "\\n".join([heading] + names)
+        node = graph["nodes"][stage["steps"][0]["id"]]
+        return caption, node["title"], node["body"]
+    total = len(stage["steps"])
+    on = sum(1 for step in stage["steps"] if not step["off"])
+    noun = "sources" if stage["kind"] == "evidence" else "tools"
+    body = [f"{total} {noun}" if on == total else f"{on} of {total} on"]
+    return caption, STAGE_NAMES.get(stage["kind"], stage["label"]), body
 
 
 def build_stage_dot(mechanism, stages, selected=None):
-    """Large left-to-right flow with one node per stage; the selected stage is filled in."""
+    """Left-to-right flow with one numbered node per stage; the selected stage is filled in."""
     graph = mechanism["graph"]
     node_of = {step["id"]: stage["id"] for stage in stages for step in stage["steps"]}
     lines = [
         "digraph G {",
-        '  rankdir=LR; bgcolor="transparent"; nodesep=0.4; ranksep=0.6;',
-        '  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=21, '
-        'fillcolor="#ffffff", fontcolor="#1f2430", margin="0.3,0.2", penwidth=2];',
-        '  edge [color="#667085", fontname="Helvetica", fontsize=16, fontcolor="#667085", arrowsize=0.9];',
+        '  rankdir=LR; bgcolor="transparent"; nodesep=0.3; ranksep=0.4;',
+        '  node [shape=box, style="rounded,filled", fontname="Helvetica", fillcolor="#ffffff", '
+        'margin="0.2,0.2", width=1.55, height=1.5];',
+        f'  edge [color="{MUTED}", fontname="Helvetica", fontsize=13, fontcolor="{MUTED}", arrowsize=0.9];',
     ]
 
     def node(node_id, label, kind, dashed=False):
         color = KIND_COLORS[kind]
-        attrs = [f'label="{_q(label)}"', f'color="{color}"']
+        attrs = [f"label={label}", f'color="{color}"', "penwidth=2"]
         if node_id == selected:
-            attrs += ["penwidth=4.5", f'fillcolor="{color}22"']
+            attrs = [f"label={label}", f'color="{ACCENT}"', "penwidth=5", f'fillcolor="{ACCENT}1a"']
         if dashed:
             attrs.append('style="rounded,filled,dashed"')
         lines.append(f"  {node_id} [{', '.join(attrs)}];")
 
-    for stage in stages:
-        node(stage["id"], _stage_label(stage, graph), stage["kind"])
+    for number, stage in enumerate(stages, 1):
+        caption, title, body = _stage_node(number, stage, graph)
+        color = ACCENT if stage["id"] == selected else KIND_COLORS[stage["kind"]]
+        node(stage["id"], _html_label(caption, title, body, color), stage["kind"])
     for node_id, spec in graph["nodes"].items():
         if node_id not in node_of:
-            node(node_id, spec["label"], spec["kind"], spec.get("dashed", False))
-    seen = set()
+            node(node_id, _html_label(KIND_CAPTIONS[spec["kind"]], spec["title"], spec["body"],
+                                      KIND_COLORS[spec["kind"]]), spec["kind"], spec.get("dashed", False))
+    arrows = []
     for edge in graph["edges"]:
         src, dst = node_of.get(edge["src"], edge["src"]), node_of.get(edge["dst"], edge["dst"])
-        if src == dst or (src, dst) in seen:
-            continue
-        seen.add((src, dst))
+        if src != dst and (src, dst) not in [(a, b) for a, b, _ in arrows]:
+            arrows.append((src, dst, edge))
+    # A straight line of stages reads fine without arrow text; label arrows only where the flow branches or loops.
+    branching = len({src for src, _, _ in arrows}) < len(arrows)
+    for src, dst, edge in arrows:
         attrs = []
-        if edge.get("label") and len(edge["label"]) <= 16:
-            attrs.append(f'label="{_q(edge["label"])}"')
+        if branching and edge.get("short"):
+            attrs.append(f'label="  {_q(edge["short"])}  "')
         if edge.get("dashed"):
             attrs.append("style=dashed")
         lines.append(f"  {src} -> {dst}{' [' + ', '.join(attrs) + ']' if attrs else ''};")
-    lines.append("}")
-    return "\n".join(lines)
-
-
-def build_dot(mechanism, selected=None, horizontal=False):
-    """Graphviz source for the mechanism, with the selected step(s) drawn heavier.
-
-    `selected` is one step id or a collection of them; `horizontal` lays the flow out
-    left to right with larger type, for use as the page's main visual.
-    """
-    graph = mechanism["graph"]
-    chosen = {selected} if isinstance(selected, str) else set(selected or ())
-
-    def node_line(node_id, spec):
-        color = KIND_COLORS[spec["kind"]]
-        attrs = [f'label="{_q(spec["label"])}"', f'color="{color}"', "penwidth=1.6"]
-        styles = ["rounded", "filled"]
-        if spec["kind"] in ("evidence", "tool") or spec.get("dashed"):
-            styles.append("dashed")
-        if spec.get("off"):
-            attrs = [f'label="{_q(spec["label"])}"', 'color="#d0d5dd"', 'fontcolor="#98a2b3"',
-                     'fillcolor="#f2f4f7"', "penwidth=1.2"]
-            styles = ["rounded", "filled", "dashed"]
-        if node_id in chosen:
-            attrs.append("penwidth=3.8")
-        attrs.append(f'style="{",".join(styles)}"')
-        return f"{node_id} [{', '.join(attrs)}];"
-
-    clustered = {m for c in graph["clusters"] for m in c["members"]}
-    lines = [
-        "digraph G {",
-        f'  rankdir={"LR" if horizontal else "TB"}; compound=true; bgcolor="transparent"; '
-        f'nodesep={0.3 if horizontal else 0.35}; ranksep={0.45 if horizontal else 0.5};',
-        f'  node [shape=box, fontname="Helvetica", fontsize={16 if horizontal else 12}, fillcolor="#ffffff", '
-        'fontcolor="#1f2430", margin="0.18,0.1"];',
-        f'  edge [color="#667085", fontname="Helvetica", fontsize={12 if horizontal else 10}, '
-        'fontcolor="#667085", arrowsize=0.7];',
-    ]
-    for cluster in graph["clusters"]:
-        lines.append(f'  subgraph cluster_{cluster["id"]} {{')
-        lines.append(f'    label="{_q(cluster["label"])}"; labeljust=l; fontname="Helvetica"; '
-                     'fontsize=10; fontcolor="#667085"; style="dashed,rounded"; color="#98a2b3";')
-        for member in cluster["members"]:
-            lines.append("    " + node_line(member, graph["nodes"][member]))
-        lines.append("  }")
-    for node_id, spec in graph["nodes"].items():
-        if node_id not in clustered:
-            lines.append("  " + node_line(node_id, spec))
-    for edge in graph["edges"]:
-        attrs = []
-        if edge.get("label"):
-            attrs.append(f'label="{_q(edge["label"])}"')
-        if edge.get("dashed"):
-            attrs.append("style=dashed")
-        if edge.get("lhead"):
-            attrs.append(f'lhead=cluster_{edge["lhead"]}')
-        if edge.get("ltail"):
-            attrs.append(f'ltail=cluster_{edge["ltail"]}')
-        suffix = f" [{', '.join(attrs)}]" if attrs else ""
-        lines.append(f'  {edge["src"]} -> {edge["dst"]}{suffix};')
     lines.append("}")
     return "\n".join(lines)

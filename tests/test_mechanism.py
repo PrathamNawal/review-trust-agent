@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT))
 from dashboard.config_store import DEFAULT_CONFIG, DEFAULT_JEV_EVIDENCE_SOURCES
 from dashboard.evidence import CARD_KEYS, build_time_aware_evidence, evidence_for_architecture
 from dashboard.jev_agent import MODEL_ID
-from dashboard.mechanism import JEV_SOURCES, build_dot, build_stage_dot, build_stages, describe_mechanism
+from dashboard.mechanism import JEV_SOURCES, build_stage_dot, build_stages, describe_mechanism
 from scripts.tool_schemas import TOOL_DEFS
 from scripts.tools import ToolBox
 
@@ -40,7 +40,7 @@ class JevMechanismTests(unittest.TestCase):
         self.assertFalse(steps["src_reviewer_history"]["off"])
         self.assertTrue(steps["src_business_text_similarity"]["off"])
         self.assertEqual(steps["src_business_text_similarity"]["tunables"], [("Include this source", "off")])
-        self.assertIn("switched off", build_dot(mech))
+        self.assertIn(f"2 of {len(JEV_SOURCES)} on", build_stage_dot(mech, build_stages(mech)))
         self.assertIn("2 of 4", mech["state_card"]["body"])
 
     def test_noul_method_exposes_the_cutoff_that_makes_the_label(self):
@@ -49,19 +49,12 @@ class JevMechanismTests(unittest.TestCase):
         steps = _steps(mech)
         self.assertEqual(steps["label"]["tunables"], [("Cutoff", "0.62")])
         self.assertTrue(steps["label"]["play"])
-        self.assertIn("0.62", mech["graph"]["nodes"]["label"]["label"])
+        self.assertIn("cutoff 0.62", mech["graph"]["nodes"]["label"]["body"])
 
     def test_routing_step_states_that_missing_confidence_goes_to_a_human(self):
         rule = dict(describe_mechanism(DEFAULT_CONFIG)["steps"][-2]["rows"])["Rule (compute_routing)"]
         self.assertIn("confidence missing", rule)
         self.assertIn("human queue", rule)
-
-    def test_selected_step_is_drawn_heavier(self):
-        mech = describe_mechanism(DEFAULT_CONFIG)
-        selected_lines = [l for l in build_dot(mech, "jev").splitlines() if "penwidth=3.8" in l]
-        self.assertEqual(len(selected_lines), 1)
-        self.assertTrue(selected_lines[0].strip().startswith("jev ["))
-        self.assertNotIn("penwidth=3.8", build_dot(mech))
 
 
 class AgnoMechanismTests(unittest.TestCase):
@@ -152,13 +145,25 @@ class StageDiagramTests(unittest.TestCase):
         self.assertIn("rankdir=LR", dot)
         for stage in stages:
             self.assertIn(f"  {stage['id']} [", dot)
-        self.assertEqual([l for l in dot.splitlines() if "penwidth=4.5" in l][0].split()[0], "ev")
-        self.assertNotIn("penwidth=4.5", build_stage_dot(mech, stages))
+        heavy = [l for l in dot.splitlines() if "penwidth=5" in l]
+        self.assertEqual(len(heavy), 1)
+        self.assertTrue(heavy[0].strip().startswith("ev ["))
+        self.assertNotIn("penwidth=5", build_stage_dot(mech, stages))
 
-    def test_switched_off_source_is_named_in_the_evidence_node(self):
+    def test_arrows_are_labelled_only_where_the_flow_branches(self):
+        jev = describe_mechanism(DEFAULT_CONFIG)
+        self.assertFalse([l for l in build_stage_dot(jev, build_stages(jev)).splitlines()
+                          if " -> " in l and "label=" in l])
+        agno = describe_mechanism({**DEFAULT_CONFIG, "architecture": "agno", "provider": "groq",
+                                   "model": "openai/gpt-oss-120b"})
+        arrows = [l for l in build_stage_dot(agno, build_stages(agno)).splitlines() if " -> " in l]
+        self.assertTrue(arrows)
+        self.assertTrue(all("label=" in l for l in arrows), arrows)
+
+    def test_switched_off_source_is_counted_in_the_evidence_node(self):
         config = {**DEFAULT_CONFIG, "jev_evidence_sources": ["reviewer_history"]}
         mech = describe_mechanism(config)
-        self.assertIn("(off)", build_stage_dot(mech, build_stages(mech)))
+        self.assertIn(f"1 of {len(JEV_SOURCES)} on", build_stage_dot(mech, build_stages(mech)))
 
     def test_agno_flow_keeps_the_tool_loop_and_routing_outcomes(self):
         config = {**DEFAULT_CONFIG, "architecture": "agno", "provider": "groq", "model": "openai/gpt-oss-120b"}
