@@ -2,6 +2,8 @@
 
 import streamlit as st
 
+from dashboard.evidence import evidence_for_architecture
+
 TOOL_TITLES = {
     "reviewer_history_lookup": "🕵️ Reviewer History",
     "business_trend_lookup": "📈 Business Trend",
@@ -51,22 +53,10 @@ _CSS = """
     color: #667085; text-transform: uppercase; letter-spacing: .09em;
     font-size: .72rem; font-weight: 700; margin: .25rem 0 .45rem;
 }
-.rta-process-card {
-    height: 100%; min-height: 184px; padding: 19px 18px;
-    border: 1px solid #e4e7ec; border-radius: 14px; background: #fff;
-    box-shadow: 0 2px 8px rgba(16, 24, 40, .035);
-}
-.rta-process-step {
-    color: #b5473c; text-transform: uppercase; letter-spacing: .08em;
-    font-size: .7rem; font-weight: 750; margin-bottom: 13px;
-}
-.rta-process-title { color: #202733; font-size: 1.02rem; font-weight: 700; margin-bottom: 8px; }
-.rta-process-body { color: #475467; font-size: .88rem; line-height: 1.55; }
 .rta-method-note {
     padding: 15px 18px; border-left: 4px solid #c85b4b; border-radius: 8px;
     background: #fff5f2; color: #663b35; line-height: 1.55;
 }
-.rta-evidence-meta { color: #667085; font-size: .78rem; margin-top: 10px; }
 </style>
 """
 
@@ -86,18 +76,6 @@ def render_hero_stat(container, label, value, caption, tone="neutral"):
         f'<div class="rta-hero-stat-label">{label}</div>'
         f'<div class="rta-hero-stat-value" style="color:{color}">{value}</div>'
         f'<div class="rta-hero-stat-caption">{caption}</div>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
-
-
-def render_process_step(container, step, title, body):
-    """Render one stage in a short, scannable investigation flow."""
-    container.markdown(
-        f'<div class="rta-process-card">'
-        f'<div class="rta-process-step">{step}</div>'
-        f'<div class="rta-process-title">{title}</div>'
-        f'<div class="rta-process-body">{body}</div>'
         f'</div>',
         unsafe_allow_html=True,
     )
@@ -129,17 +107,19 @@ def resolve_tool_key(tool_name, tool_input):
     return tool_name
 
 
-def render_evidence_grid(container, toolbox, review_id, user_id, prod_id, review_text, date):
-    """Render the same four evidence lookups used by the agent."""
+def render_evidence_grid(container, toolbox, review_id, user_id, prod_id, review_text, date, config=None):
+    """Render the four evidence lookups a person should see for this review.
+
+    The evidence follows the active architecture: Jev gets only reviews dated
+    before the case, the Agno tools exclude just the review itself. Showing a
+    person anything else would let them judge on information the model never had.
+    """
+    architecture = (config or {}).get("architecture", "agno")
+    review = {"review_id": int(review_id), "user_id": str(user_id), "prod_id": str(prod_id),
+              "review_text": review_text, "date": date}
+    cards, note = evidence_for_architecture(toolbox, review, architecture)
+    container.caption(note)
     first, second = container.columns(2)
-    render_evidence_card(first, "reviewer_history_lookup",
-                         toolbox.reviewer_history_lookup(user_id, exclude_review_id=review_id))
-    render_evidence_card(second, "business_trend_lookup",
-                         toolbox.business_trend_lookup(prod_id, date, exclude_review_id=review_id))
     third, fourth = container.columns(2)
-    render_evidence_card(third, "text_similarity_reviewer",
-                         toolbox.text_similarity_check(review_text, "reviewer", user_id,
-                                                       exclude_review_id=review_id))
-    render_evidence_card(fourth, "text_similarity_business",
-                         toolbox.text_similarity_check(review_text, "business", prod_id,
-                                                       exclude_review_id=review_id))
+    for slot, (card_key, data) in zip((first, second, third, fourth), cards):
+        render_evidence_card(slot, card_key, data)
