@@ -4,7 +4,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from dashboard.mechanism import PLAY_PAGE, build_dot, build_stages, describe_mechanism
+from dashboard.mechanism import PLAY_PAGE, build_dot, build_stage_dot, build_stages, describe_mechanism
 
 
 def render_overview(goto):
@@ -163,11 +163,14 @@ def render_how_it_works(goto, active_config):
     if st.session_state.get(key) not in by_id:
         st.session_state[key] = default_stage
 
-    st.caption("Walk the flow — pick a stage to see what really happens there.")
+    hero = st.container(border=True)
+    st.caption("Pick a stage to see what really happens there — or follow the Next button through the flow.")
     chosen = st.segmented_control(
         "Stage", options=list(by_id), format_func=labels.get, key=key,
         label_visibility="collapsed", width="stretch",
     ) or default_stage
+    with hero:
+        st.graphviz_chart(build_stage_dot(mech, stages, chosen), width="stretch")
     _render_stage(by_id[chosen], goto, chosen)
 
     position = list(by_id).index(chosen)
@@ -185,9 +188,8 @@ def render_how_it_works(goto, active_config):
 
     is_jev = mech["architecture"] == "jev"
     st.markdown(JEV_RESULT_NOTE if is_jev else AGNO_RESULT_NOTE, unsafe_allow_html=True)
-    with st.expander("Full flow diagram", icon=":material/account_tree:"):
-        selected = by_id[chosen]["steps"][0]["id"] if not by_id[chosen]["cluster"] else None
-        st.graphviz_chart(build_dot(mech, selected), width="content")
+    with st.expander("Every step in detail", icon=":material/account_tree:"):
+        st.graphviz_chart(build_dot(mech), width="content")
     with st.expander("Evidence and evaluation details", icon=":material/info:"):
         st.markdown(JEV_DETAILS if is_jev else AGNO_DETAILS)
 

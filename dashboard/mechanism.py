@@ -373,9 +373,68 @@ def _q(text):
     return str(text).replace('"', '\\"')
 
 
-def build_dot(mechanism, selected=None):
-    """Graphviz source for the mechanism, with the selected step drawn heavier."""
+def _stage_label(stage, graph):
+    if not stage["cluster"]:
+        return graph["nodes"][stage["steps"][0]["id"]]["label"]
+    names = []
+    for step in stage["steps"]:
+        name = graph["nodes"][step["id"]]["label"].split("\\n")[0:2]
+        name = " ".join(part for part in name if part != "switched off")
+        names.append(name + (" (off)" if step["off"] else ""))
+    heading = "Evidence · by code" if stage["kind"] == "evidence" else "Tools · model picks"
+    return "\\n".join([heading] + names)
+
+
+def build_stage_dot(mechanism, stages, selected=None):
+    """Large left-to-right flow with one node per stage; the selected stage is filled in."""
     graph = mechanism["graph"]
+    node_of = {step["id"]: stage["id"] for stage in stages for step in stage["steps"]}
+    lines = [
+        "digraph G {",
+        '  rankdir=LR; bgcolor="transparent"; nodesep=0.4; ranksep=0.6;',
+        '  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=21, '
+        'fillcolor="#ffffff", fontcolor="#1f2430", margin="0.3,0.2", penwidth=2];',
+        '  edge [color="#667085", fontname="Helvetica", fontsize=16, fontcolor="#667085", arrowsize=0.9];',
+    ]
+
+    def node(node_id, label, kind, dashed=False):
+        color = KIND_COLORS[kind]
+        attrs = [f'label="{_q(label)}"', f'color="{color}"']
+        if node_id == selected:
+            attrs += ["penwidth=4.5", f'fillcolor="{color}22"']
+        if dashed:
+            attrs.append('style="rounded,filled,dashed"')
+        lines.append(f"  {node_id} [{', '.join(attrs)}];")
+
+    for stage in stages:
+        node(stage["id"], _stage_label(stage, graph), stage["kind"])
+    for node_id, spec in graph["nodes"].items():
+        if node_id not in node_of:
+            node(node_id, spec["label"], spec["kind"], spec.get("dashed", False))
+    seen = set()
+    for edge in graph["edges"]:
+        src, dst = node_of.get(edge["src"], edge["src"]), node_of.get(edge["dst"], edge["dst"])
+        if src == dst or (src, dst) in seen:
+            continue
+        seen.add((src, dst))
+        attrs = []
+        if edge.get("label") and len(edge["label"]) <= 16:
+            attrs.append(f'label="{_q(edge["label"])}"')
+        if edge.get("dashed"):
+            attrs.append("style=dashed")
+        lines.append(f"  {src} -> {dst}{' [' + ', '.join(attrs) + ']' if attrs else ''};")
+    lines.append("}")
+    return "\n".join(lines)
+
+
+def build_dot(mechanism, selected=None, horizontal=False):
+    """Graphviz source for the mechanism, with the selected step(s) drawn heavier.
+
+    `selected` is one step id or a collection of them; `horizontal` lays the flow out
+    left to right with larger type, for use as the page's main visual.
+    """
+    graph = mechanism["graph"]
+    chosen = {selected} if isinstance(selected, str) else set(selected or ())
 
     def node_line(node_id, spec):
         color = KIND_COLORS[spec["kind"]]
@@ -387,7 +446,7 @@ def build_dot(mechanism, selected=None):
             attrs = [f'label="{_q(spec["label"])}"', 'color="#d0d5dd"', 'fontcolor="#98a2b3"',
                      'fillcolor="#f2f4f7"', "penwidth=1.2"]
             styles = ["rounded", "filled", "dashed"]
-        if node_id == selected:
+        if node_id in chosen:
             attrs.append("penwidth=3.8")
         attrs.append(f'style="{",".join(styles)}"')
         return f"{node_id} [{', '.join(attrs)}];"
@@ -395,10 +454,12 @@ def build_dot(mechanism, selected=None):
     clustered = {m for c in graph["clusters"] for m in c["members"]}
     lines = [
         "digraph G {",
-        '  rankdir=TB; compound=true; bgcolor="transparent"; nodesep=0.35; ranksep=0.5;',
-        '  node [shape=box, fontname="Helvetica", fontsize=12, fillcolor="#ffffff", '
-        'fontcolor="#1f2430", margin="0.16,0.09"];',
-        '  edge [color="#667085", fontname="Helvetica", fontsize=10, fontcolor="#667085", arrowsize=0.7];',
+        f'  rankdir={"LR" if horizontal else "TB"}; compound=true; bgcolor="transparent"; '
+        f'nodesep={0.3 if horizontal else 0.35}; ranksep={0.45 if horizontal else 0.5};',
+        f'  node [shape=box, fontname="Helvetica", fontsize={16 if horizontal else 12}, fillcolor="#ffffff", '
+        'fontcolor="#1f2430", margin="0.18,0.1"];',
+        f'  edge [color="#667085", fontname="Helvetica", fontsize={12 if horizontal else 10}, '
+        'fontcolor="#667085", arrowsize=0.7];',
     ]
     for cluster in graph["clusters"]:
         lines.append(f'  subgraph cluster_{cluster["id"]} {{')
